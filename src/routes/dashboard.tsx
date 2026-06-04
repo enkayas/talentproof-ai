@@ -285,8 +285,9 @@ function JobCard({
 
   const handleCopy = async () => {
     try {
+      const appOrigin = window.location.origin;
       await navigator.clipboard.writeText(
-        `https://talentfirst.app/apply/${title.toLowerCase().replace(/\s+/g, "-")}`,
+        `${appOrigin}/apply/${title.toLowerCase().replace(/\s+/g, "-")}`,
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
