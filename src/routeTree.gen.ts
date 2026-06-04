@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApplyJobSlugRouteImport } from './routes/apply.$jobSlug'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -34,18 +35,25 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApplyJobSlugRoute = ApplyJobSlugRouteImport.update({
+  id: '/apply/$jobSlug',
+  path: '/apply/$jobSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/apply/$jobSlug': typeof ApplyJobSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/apply/$jobSlug': typeof ApplyJobSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,14 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/apply/$jobSlug': typeof ApplyJobSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard' | '/login'
+  fullPaths: '/' | '/auth' | '/dashboard' | '/login' | '/apply/$jobSlug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/login'
-  id: '__root__' | '/' | '/auth' | '/dashboard' | '/login'
+  to: '/' | '/auth' | '/dashboard' | '/login' | '/apply/$jobSlug'
+  id: '__root__' | '/' | '/auth' | '/dashboard' | '/login' | '/apply/$jobSlug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +76,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  ApplyJobSlugRoute: typeof ApplyJobSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/apply/$jobSlug': {
+      id: '/apply/$jobSlug'
+      path: '/apply/$jobSlug'
+      fullPath: '/apply/$jobSlug'
+      preLoaderRoute: typeof ApplyJobSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +124,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  ApplyJobSlugRoute: ApplyJobSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
