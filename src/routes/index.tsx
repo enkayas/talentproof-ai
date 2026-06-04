@@ -65,7 +65,8 @@ function Nav() {
           </a>
         </nav>
         <Link
-          to="/login"
+          to="/auth"
+          search={{ mode: "login" }}
           className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition hover:opacity-90"
         >
           Recruiter Login
@@ -98,7 +99,8 @@ function Hero() {
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
-            to="/dashboard"
+            to="/auth"
+            search={{ mode: "signup" }}
             className="inline-flex items-center gap-2 rounded-full bg-foreground px-7 py-3.5 text-sm font-medium text-background transition hover:opacity-90"
           >
             Create a Job Link — it's free
@@ -364,7 +366,8 @@ function FinalCTA() {
           </p>
           <div className="mt-10 flex justify-center">
             <Link
-              to="/dashboard"
+              to="/auth"
+              search={{ mode: "signup" }}
               className="inline-flex items-center gap-2 rounded-full bg-foreground px-8 py-4 text-sm font-medium text-background transition hover:opacity-90"
             >
               Get Started Now
