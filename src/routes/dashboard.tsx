@@ -11,6 +11,7 @@ import {
   Plus,
   Sparkles,
 } from "lucide-react";
+import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -143,76 +144,103 @@ function DashboardPage() {
         </div>
 
         <div className="relative px-6 md:px-10 py-8 md:py-12 max-w-7xl mx-auto">
-          {/* Header */}
-          <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
-            <div>
-              <h1 className="font-serif text-4xl md:text-5xl tracking-tight text-foreground">
-                Welcome back,{" "}
-                <span className="italic text-accent-purple">Recruiter</span>
-              </h1>
-              <p className="text-sm text-muted-foreground mt-2">{today}</p>
-            </div>
-            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity">
-              <Plus className="h-4 w-4" />
-              Create New Link
-            </button>
-          </header>
-
-          {/* Metric ribbon */}
-          <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-            <MetricCard label="Active Links" value="4" />
-            <MetricCard label="Applicants Evaluated" value="1,240" />
-            <MetricCard label="Unlocked Candidates" value="12" accent />
-          </section>
-
-          {/* Active Job Links */}
-          <section className="mb-12">
-            <div className="flex items-baseline justify-between mb-5">
-              <h2 className="font-serif text-2xl md:text-3xl tracking-tight text-foreground">
-                Active Job <span className="italic text-accent-purple">Links</span>
-              </h2>
-              <span className="text-xs text-muted-foreground">{JOBS.length} live</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {JOBS.map((job) => (
-                <JobCard key={job.title} {...job} />
-              ))}
-            </div>
-          </section>
-
-          {/* Recent High-Scorers */}
-          <section>
-            <h2 className="font-serif text-2xl md:text-3xl tracking-tight text-foreground mb-5">
-              Recent <span className="italic text-accent-purple">High-Scorers</span>{" "}
-              <span className="text-muted-foreground text-base align-middle">(Top 10%)</span>
-            </h2>
-            <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden">
-              {SCORERS.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center justify-between px-5 py-4 hover:bg-foreground/[0.03] transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-9 w-9 rounded-full bg-accent-purple/15 flex items-center justify-center">
-                      <Sparkles className="h-4 w-4 text-accent-purple" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-foreground">
-                        Applicant #{s.id}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        applied to {s.role}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-purple text-background text-xs font-bold tabular-nums">
-                    <Trophy className="h-3 w-3" />
-                    {s.score}/100
-                  </span>
+          {active === "create" ? (
+            <>
+              <header className="mb-10 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                    New Screening
+                  </p>
+                  <h1 className="font-serif text-3xl md:text-4xl tracking-tight text-foreground">
+                    Create a <span className="italic text-accent-purple">link</span>
+                  </h1>
                 </div>
-              ))}
-            </div>
-          </section>
+                <button
+                  onClick={() => setActive("active")}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+              </header>
+              <CreateLinkWizard />
+            </>
+          ) : (
+            <>
+              {/* Header */}
+              <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+                <div>
+                  <h1 className="font-serif text-4xl md:text-5xl tracking-tight text-foreground">
+                    Welcome back,{" "}
+                    <span className="italic text-accent-purple">Recruiter</span>
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-2">{today}</p>
+                </div>
+                <button
+                  onClick={() => setActive("create")}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create New Link
+                </button>
+              </header>
+
+              {/* Metric ribbon */}
+              <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
+                <MetricCard label="Active Links" value="4" />
+                <MetricCard label="Applicants Evaluated" value="1,240" />
+                <MetricCard label="Unlocked Candidates" value="12" accent />
+              </section>
+
+              {/* Active Job Links */}
+              <section className="mb-12">
+                <div className="flex items-baseline justify-between mb-5">
+                  <h2 className="font-serif text-2xl md:text-3xl tracking-tight text-foreground">
+                    Active Job <span className="italic text-accent-purple">Links</span>
+                  </h2>
+                  <span className="text-xs text-muted-foreground">{JOBS.length} live</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {JOBS.map((job) => (
+                    <JobCard key={job.title} {...job} />
+                  ))}
+                </div>
+              </section>
+
+              {/* Recent High-Scorers */}
+              <section>
+                <h2 className="font-serif text-2xl md:text-3xl tracking-tight text-foreground mb-5">
+                  Recent <span className="italic text-accent-purple">High-Scorers</span>{" "}
+                  <span className="text-muted-foreground text-base align-middle">(Top 10%)</span>
+                </h2>
+                <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden">
+                  {SCORERS.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between px-5 py-4 hover:bg-foreground/[0.03] transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-full bg-accent-purple/15 flex items-center justify-center">
+                          <Sparkles className="h-4 w-4 text-accent-purple" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground">
+                            Applicant #{s.id}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            applied to {s.role}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-purple text-background text-xs font-bold tabular-nums">
+                        <Trophy className="h-3 w-3" />
+                        {s.score}/100
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </>
+          )}
         </div>
       </main>
     </div>
