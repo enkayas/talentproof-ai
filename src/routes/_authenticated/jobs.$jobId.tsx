@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Loader2,
@@ -136,6 +136,27 @@ function SubmissionsPage() {
       load();
     }, 6000);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subs]);
+
+  // Auto-retry: if a submission has been "Evaluating…" for >60s, kick off
+  // scoreSubmission once. Backfills existing stuck rows on first load too.
+  // Guarded by a ref Set so each row is only retried once per session.
+  const retriedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const stuck = subs.filter((s) => {
+      if (s.qa_score !== null) return false;
+      if (retriedRef.current.has(s.id)) return false;
+      const ageMs = Date.now() - new Date(s.created_at).getTime();
+      return ageMs > 60_000;
+    });
+    if (stuck.length === 0) return;
+    for (const s of stuck) {
+      retriedRef.current.add(s.id);
+      scoreSubmission({ data: { submissionId: s.id } })
+        .then(() => load())
+        .catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subs]);
 
