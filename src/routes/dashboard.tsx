@@ -11,6 +11,7 @@ import {
   Plus,
   Sparkles,
 } from "lucide-react";
+import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
