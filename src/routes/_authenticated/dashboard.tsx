@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Recruiter Dashboard — TalentFirst" },
