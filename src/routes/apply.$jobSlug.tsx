@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { scoreSubmission } from "@/lib/score-submission.functions";
 
 export const Route = createFileRoute("/apply/$jobSlug")({
   head: () => ({
