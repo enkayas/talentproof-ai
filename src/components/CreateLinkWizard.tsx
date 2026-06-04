@@ -38,16 +38,11 @@ export function CreateLinkWizard() {
   const [reqLink, setReqLink] = useState(true);
   const [reqCv, setReqCv] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
 
-  const slugId =
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 24) || "untitled-role";
-  const generatedUrl = `talentfirst.ai/apply/${slugId}-${Math.random()
-    .toString(36)
-    .slice(2, 6)}`;
+  const generatedUrl = jobId ? `talentfirst.ai/apply/${jobId}` : "";
 
   const handleGenerate = async () => {
     if (!title.trim() || !desc.trim()) return;
