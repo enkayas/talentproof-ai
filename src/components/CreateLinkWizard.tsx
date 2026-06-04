@@ -64,7 +64,7 @@ export function CreateLinkWizard() {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(i)) next.delete(i);
-      else if (next.size < 3) next.add(i);
+      else if (next.size < 5) next.add(i);
       return next;
     });
   };
@@ -78,7 +78,7 @@ export function CreateLinkWizard() {
     setQuestions([...questions, customDraft.trim()]);
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.size < 3) next.add(newIdx);
+      if (next.size < 5) next.add(newIdx);
       return next;
     });
     setCustomDraft(null);
@@ -181,7 +181,7 @@ export function CreateLinkWizard() {
                   questions.
                 </h2>
                 <p className="text-sm text-muted-foreground mb-8">
-                  Select up to 3 questions. Shorter forms increase applicant completion by 80%.
+                  Select up to 5 questions. Shorter forms increase applicant completion by 80%.
                 </p>
 
                 <div className="space-y-3 mb-4">
