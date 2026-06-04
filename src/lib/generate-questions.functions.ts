@@ -62,7 +62,7 @@ export const generateQuestions = createServerFn({ method: "POST" })
         return { questions: FALLBACK, fallback: true };
       }
       return {
-        questions: parsed.slice(0, 4).map((q) => String(q)),
+        questions: parsed.slice(0, 5).map((q) => String(q)),
         fallback: false,
       };
     } catch {
