@@ -366,7 +366,8 @@ function FinalCTA() {
           </p>
           <div className="mt-10 flex justify-center">
             <Link
-              to="/dashboard"
+              to="/auth"
+              search={{ mode: "signup" }}
               className="inline-flex items-center gap-2 rounded-full bg-foreground px-8 py-4 text-sm font-medium text-background transition hover:opacity-90"
             >
               Get Started Now
