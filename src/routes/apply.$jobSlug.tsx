@@ -142,21 +142,29 @@ function ApplyPage() {
   const handleSubmit = async () => {
     setSubmitError(null);
     setStep(submittingStepIdx);
-    const { error } = await supabase.from("submissions").insert({
-      job_id: jobSlug,
-      candidate_name: name.trim(),
-      email: email.trim(),
-      whatsapp: whatsapp.trim() || null,
-      linkedin: linkedin.trim() || null,
-      answers,
-      portfolio_link: job?.require_link ? portfolio.trim() : null,
-      cv_text: job?.require_cv ? cvText.trim() : null,
-      qa_score: null,
-    });
+    const { data: inserted, error } = await supabase
+      .from("submissions")
+      .insert({
+        job_id: jobSlug,
+        candidate_name: name.trim(),
+        email: email.trim(),
+        whatsapp: whatsapp.trim() || null,
+        linkedin: linkedin.trim() || null,
+        answers,
+        portfolio_link: job?.require_link ? portfolio.trim() : null,
+        cv_text: job?.require_cv ? cvText.trim() : null,
+        qa_score: null,
+      })
+      .select("id")
+      .single();
     if (error) {
       setSubmitError(error.message || "Something went wrong. Please try again.");
       setStep(hasProofStep ? proofStepIdx : questionEndIdx);
       return;
+    }
+    // Fire-and-forget AI scoring; recruiter sees "Evaluating…" until it lands.
+    if (inserted?.id) {
+      scoreSubmission({ data: { submissionId: inserted.id } }).catch(() => {});
     }
     // small delay to let the loading state breathe
     setTimeout(() => setStep(successStepIdx), 900);
