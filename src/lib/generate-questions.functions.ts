@@ -6,13 +6,25 @@ const Input = z.object({
   jobDescription: z.string().min(1),
 });
 
-const SYSTEM_PROMPT = `You are an elite HR consultant specializing in non-technical, creative, and humanities roles. Analyze the provided Job Title and Job Description. Generate exactly 4 highly specific, practical, situational interview questions that test real competency, critical thinking, empathy, or writing capability instead of textbook knowledge. Do not ask generic questions like 'Tell me about yourself'. Format the output strictly as a JSON array of strings: ["question 1", "question 2", "question 3", "question 4"].`;
+const SYSTEM_PROMPT = `You are an elite HR consultant specializing in non-technical, creative, and humanities roles. Analyze the provided Job Title and Job Description. Generate exactly 5 interview questions tailored to the role, with a deliberate MIX of depth:
+
+- 2 deep, situational/scenario questions that test real competency, critical thinking, or judgment in the specific domain.
+- 1 practical writing or task-based prompt (e.g. draft a short note, email, or summary).
+- 2 lighter, reflective questions that invite the candidate to share personal experience, motivation, or perspective. Examples (adapt to the role's domain): "Write about an experience from a prior internship that shaped how you think about this field." or "Share one thing you find genuinely interesting about [domain] beyond what's in textbooks."
+
+Rules:
+- Never use generic filler like "Tell me about yourself" or "What are your strengths and weaknesses".
+- Keep each question crisp (1–3 sentences). Reflective questions should feel warm and inviting, not academic.
+- Reference the role's actual domain (taken from the Job Title and Description) in at least the deep questions.
+
+Format the output strictly as a JSON array of 5 strings: ["q1", "q2", "q3", "q4", "q5"]. No prose, no keys, no markdown fences.`;
 
 const FALLBACK = [
-  "Describe a time you had to communicate a complex idea to someone unfamiliar with the topic. How did you adapt your message?",
-  "You receive conflicting feedback from two stakeholders on a piece of work. Walk us through how you'd resolve it.",
-  "Write a 3-sentence response to a frustrated user complaining their issue wasn't resolved on the first contact.",
-  "Pick a recent piece of writing or content you admired. What specifically made it effective?",
+  "Walk me through a recent situation where you had to make a judgment call with incomplete information. What did you weigh, and what would you do differently?",
+  "Draft a 3–4 sentence note you'd send to a senior teammate explaining a tricky finding from your work this week.",
+  "Write about an experience from a prior internship or project that genuinely shaped how you think about this field.",
+  "Share one thing you find interesting about this domain that most people overlook — and why it matters to you.",
+  "Describe a piece of work or writing you're proud of. What made it land?",
 ];
 
 export const generateQuestions = createServerFn({ method: "POST" })
@@ -50,7 +62,7 @@ export const generateQuestions = createServerFn({ method: "POST" })
         return { questions: FALLBACK, fallback: true };
       }
       return {
-        questions: parsed.slice(0, 4).map((q) => String(q)),
+        questions: parsed.slice(0, 5).map((q) => String(q)),
         fallback: false,
       };
     } catch {
