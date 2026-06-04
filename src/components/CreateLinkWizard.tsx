@@ -13,8 +13,16 @@ import {
   PartyPopper,
 } from "lucide-react";
 import { generateQuestions } from "@/lib/generate-questions.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 type Step = 1 | 2 | 3 | 4;
+
+function randomSuffix(len = 4) {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let s = "";
+  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
 
 export function CreateLinkWizard() {
   const navigate = useNavigate();
@@ -30,16 +38,11 @@ export function CreateLinkWizard() {
   const [reqLink, setReqLink] = useState(true);
   const [reqCv, setReqCv] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
 
-  const slugId =
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 24) || "untitled-role";
-  const generatedUrl = `talentfirst.ai/apply/${slugId}-${Math.random()
-    .toString(36)
-    .slice(2, 6)}`;
+  const generatedUrl = jobId ? `talentfirst.ai/apply/${jobId}` : "";
 
   const handleGenerate = async () => {
     if (!title.trim() || !desc.trim()) return;
@@ -85,6 +88,7 @@ export function CreateLinkWizard() {
   };
 
   const handleCopy = async () => {
+    if (!generatedUrl) return;
     try {
       await navigator.clipboard.writeText(`https://${generatedUrl}`);
       setCopied(true);
@@ -93,6 +97,53 @@ export function CreateLinkWizard() {
       /* noop */
     }
   };
+
+  const handlePublish = async () => {
+    if (publishing) return;
+    setPublishing(true);
+    setPublishError(null);
+
+    const baseSlug =
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40) || "untitled-role";
+    const selectedQuestions = Array.from(selected)
+      .sort((a, b) => a - b)
+      .map((i) => questions[i])
+      .filter(Boolean);
+
+    // Try a few times in the unlikely event of an id collision
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const id = `${baseSlug}--${randomSuffix(4)}`;
+      const { error } = await supabase.from("jobs").insert({
+        id,
+        job_title: title,
+        questions: selectedQuestions,
+        require_link: reqLink,
+        require_cv: reqCv,
+      });
+
+      if (!error) {
+        setJobId(id);
+        setPublishing(false);
+        setStep(4);
+        return;
+      }
+
+      // 23505 = unique_violation — retry with a new suffix
+      if ((error as { code?: string }).code !== "23505") {
+        setPublishError(error.message || "Failed to publish link. Please try again.");
+        setPublishing(false);
+        return;
+      }
+    }
+
+    setPublishError("Could not generate a unique link. Please try again.");
+    setPublishing(false);
+  };
+
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -294,20 +345,35 @@ export function CreateLinkWizard() {
               />
             </div>
 
+            {publishError && (
+              <p className="text-sm text-red-400 mb-3">{publishError}</p>
+            )}
+
             <div className="flex items-center justify-between pt-4 border-t border-border">
               <button
                 onClick={() => setStep(2)}
-                className="inline-flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition-colors"
+                disabled={publishing}
+                className="inline-flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition-colors disabled:opacity-40"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </button>
               <button
-                onClick={() => setStep(4)}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+                onClick={handlePublish}
+                disabled={publishing}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Next: Publish Link
-                <ArrowRight className="h-4 w-4" />
+                {publishing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Publishing…
+                  </>
+                ) : (
+                  <>
+                    Publish Link
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
               </button>
             </div>
           </section>
