@@ -3,6 +3,17 @@ import { z } from "zod";
 
 const Input = z.object({ submissionId: z.string().uuid() });
 
+const SubmitInput = z.object({
+  jobId: z.string().min(1),
+  candidate_name: z.string().min(1).max(200),
+  email: z.string().email().max(200),
+  whatsapp: z.string().max(50).nullable().optional(),
+  linkedin: z.string().max(500).nullable().optional(),
+  answers: z.array(z.string().max(5000)).max(50),
+  portfolio_link: z.string().max(1000).nullable().optional(),
+  cv_text: z.string().max(50000).nullable().optional(),
+});
+
 const SYSTEM_PROMPT = `You are a deterministic mathematical scoring engine designed to evaluate candidate text answers. You must calculate a final integer score out of 100 based strictly on the three quantitative formulas below. Do not use holistic impressions. Treat the evaluation with extreme statistical rigor.
 
 1. CALCULATE DEPTH SCORE (S_depth, Max 40):
@@ -33,41 +44,37 @@ Return the final payload strictly as a flat JSON object:
 
 No prose, no markdown fences.`;
 
-export const scoreSubmission = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => Input.parse(d))
-  .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) return { ok: false as const, reason: "no-api-key" };
+async function runScoring(submissionId: string) {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) return { ok: false as const, reason: "no-api-key" };
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Load submission
-    const { data: sub, error: subErr } = await supabaseAdmin
-      .from("submissions")
-      .select("id, job_id, candidate_name, answers, portfolio_link, cv_text, qa_score")
-      .eq("id", data.submissionId)
-      .maybeSingle();
+  const { data: sub, error: subErr } = await supabaseAdmin
+    .from("submissions")
+    .select("id, job_id, candidate_name, answers, portfolio_link, cv_text, qa_score")
+    .eq("id", submissionId)
+    .maybeSingle();
 
-    if (subErr || !sub) return { ok: false as const, reason: "submission-not-found" };
-    if (sub.qa_score !== null && sub.qa_score !== undefined) {
-      return { ok: true as const, score: Number(sub.qa_score), cached: true };
-    }
+  if (subErr || !sub) return { ok: false as const, reason: "submission-not-found" };
+  if (sub.qa_score !== null && sub.qa_score !== undefined) {
+    return { ok: true as const, score: Number(sub.qa_score), cached: true };
+  }
 
-    // Load job for questions + title
-    const { data: job } = await supabaseAdmin
-      .from("jobs")
-      .select("job_title, questions")
-      .eq("id", sub.job_id)
-      .maybeSingle();
+  const { data: job } = await supabaseAdmin
+    .from("jobs")
+    .select("job_title, questions")
+    .eq("id", sub.job_id)
+    .maybeSingle();
 
-    const questions = Array.isArray(job?.questions) ? (job!.questions as string[]) : [];
-    const answers = Array.isArray(sub.answers) ? (sub.answers as string[]) : [];
+  const questions = Array.isArray(job?.questions) ? (job!.questions as string[]) : [];
+  const answers = Array.isArray(sub.answers) ? (sub.answers as string[]) : [];
 
-    const qa = questions
-      .map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${answers[i] ?? "(no answer)"}`)
-      .join("\n\n");
+  const qa = questions
+    .map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${answers[i] ?? "(no answer)"}`)
+    .join("\n\n");
 
-    const userPrompt = `Role: ${job?.job_title ?? "(unknown)"}
+  const userPrompt = `Role: ${job?.job_title ?? "(unknown)"}
 Candidate: ${sub.candidate_name}
 
 ${qa}
@@ -75,47 +82,84 @@ ${qa}
 ${sub.portfolio_link ? `Portfolio: ${sub.portfolio_link}\n` : ""}${sub.cv_text ? `Resume:\n${sub.cv_text}\n` : ""}
 Evaluate now. Return JSON only.`;
 
-    let score: number | null = null;
-    let reasoning = "";
+  let score: number | null = null;
+  let reasoning = "";
 
-    try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Lovable-API-Key": key,
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-      });
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Lovable-API-Key": key,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
 
-      if (!res.ok) {
-        return { ok: false as const, reason: `gateway-${res.status}` };
-      }
-      const json = await res.json();
-      const content: string = json?.choices?.[0]?.message?.content ?? "";
-      const match = content.match(/\{[\s\S]*\}/);
-      if (!match) return { ok: false as const, reason: "no-json" };
-      const parsed = JSON.parse(match[0]);
-      const s = Number(parsed?.final_score ?? parsed?.score);
-      if (!Number.isFinite(s)) return { ok: false as const, reason: "bad-score" };
-      score = Math.max(0, Math.min(100, Math.round(s)));
-      reasoning = String(parsed?.analysis_reasoning ?? parsed?.reasoning ?? "").slice(0, 600);
-    } catch (e) {
-      return { ok: false as const, reason: "exception" };
+    if (!res.ok) {
+      return { ok: false as const, reason: `gateway-${res.status}` };
+    }
+    const json = await res.json();
+    const content: string = json?.choices?.[0]?.message?.content ?? "";
+    const match = content.match(/\{[\s\S]*\}/);
+    if (!match) return { ok: false as const, reason: "no-json" };
+    const parsed = JSON.parse(match[0]);
+    const s = Number(parsed?.final_score ?? parsed?.score);
+    if (!Number.isFinite(s)) return { ok: false as const, reason: "bad-score" };
+    score = Math.max(0, Math.min(100, Math.round(s)));
+    reasoning = String(parsed?.analysis_reasoning ?? parsed?.reasoning ?? "").slice(0, 600);
+  } catch {
+    return { ok: false as const, reason: "exception" };
+  }
+
+  const { error: updErr } = await supabaseAdmin
+    .from("submissions")
+    .update({ qa_score: score, ai_reasoning: reasoning })
+    .eq("id", submissionId);
+
+  if (updErr) return { ok: false as const, reason: "update-failed" };
+
+  return { ok: true as const, score, reasoning };
+}
+
+export const scoreSubmission = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => Input.parse(d))
+  .handler(async ({ data }) => runScoring(data.submissionId));
+
+export const submitApplication = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => SubmitInput.parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: inserted, error } = await supabaseAdmin
+      .from("submissions")
+      .insert({
+        job_id: data.jobId,
+        candidate_name: data.candidate_name,
+        email: data.email,
+        whatsapp: data.whatsapp ?? null,
+        linkedin: data.linkedin ?? null,
+        answers: data.answers,
+        portfolio_link: data.portfolio_link ?? null,
+        cv_text: data.cv_text ?? null,
+        qa_score: null,
+      })
+      .select("id")
+      .single();
+
+    if (error || !inserted) {
+      return { ok: false as const, reason: error?.message ?? "insert-failed" };
     }
 
-    const { error: updErr } = await supabaseAdmin
-      .from("submissions")
-      .update({ qa_score: score, ai_reasoning: reasoning })
-      .eq("id", data.submissionId);
+    // Score synchronously so the candidate's network call holds the request
+    // until the AI has written qa_score + ai_reasoning. This guarantees the
+    // scoring cannot be aborted by the browser unmounting on success.
+    const scoring = await runScoring(inserted.id);
 
-    if (updErr) return { ok: false as const, reason: "update-failed" };
-
-    return { ok: true as const, score, reasoning };
+    return { ok: true as const, submissionId: inserted.id, scoring };
   });

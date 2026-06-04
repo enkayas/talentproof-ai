@@ -10,7 +10,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { scoreSubmission } from "@/lib/score-submission.functions";
+import { submitApplication } from "@/lib/score-submission.functions";
 
 export const Route = createFileRoute("/apply/$jobSlug")({
   head: () => ({
@@ -142,32 +142,31 @@ function ApplyPage() {
   const handleSubmit = async () => {
     setSubmitError(null);
     setStep(submittingStepIdx);
-    const { data: inserted, error } = await supabase
-      .from("submissions")
-      .insert({
-        job_id: jobSlug,
-        candidate_name: name.trim(),
-        email: email.trim(),
-        whatsapp: whatsapp.trim() || null,
-        linkedin: linkedin.trim() || null,
-        answers,
-        portfolio_link: job?.require_link ? portfolio.trim() : null,
-        cv_text: job?.require_cv ? cvText.trim() : null,
-        qa_score: null,
-      })
-      .select("id")
-      .single();
-    if (error) {
-      setSubmitError(error.message || "Something went wrong. Please try again.");
+    try {
+      const result = await submitApplication({
+        data: {
+          jobId: jobSlug,
+          candidate_name: name.trim(),
+          email: email.trim(),
+          whatsapp: whatsapp.trim() || null,
+          linkedin: linkedin.trim() || null,
+          answers,
+          portfolio_link: job?.require_link ? portfolio.trim() : null,
+          cv_text: job?.require_cv ? cvText.trim() : null,
+        },
+      });
+      if (!result?.ok) {
+        setSubmitError("Something went wrong. Please try again.");
+        setStep(hasProofStep ? proofStepIdx : questionEndIdx);
+        return;
+      }
+      setStep(successStepIdx);
+    } catch (e) {
+      setSubmitError(
+        e instanceof Error ? e.message : "Something went wrong. Please try again.",
+      );
       setStep(hasProofStep ? proofStepIdx : questionEndIdx);
-      return;
     }
-    // Fire-and-forget AI scoring; recruiter sees "Evaluating…" until it lands.
-    if (inserted?.id) {
-      scoreSubmission({ data: { submissionId: inserted.id } }).catch(() => {});
-    }
-    // small delay to let the loading state breathe
-    setTimeout(() => setStep(successStepIdx), 900);
   };
 
   // ---------- render ----------
