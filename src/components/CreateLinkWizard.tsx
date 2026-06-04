@@ -64,7 +64,7 @@ export function CreateLinkWizard() {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(i)) next.delete(i);
-      else if (next.size < 3) next.add(i);
+      else if (next.size < 5) next.add(i);
       return next;
     });
   };
