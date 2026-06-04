@@ -46,6 +46,7 @@ export type Database = {
       }
       submissions: {
         Row: {
+          ai_reasoning: string | null
           answers: Json
           candidate_name: string
           created_at: string
@@ -59,6 +60,7 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          ai_reasoning?: string | null
           answers?: Json
           candidate_name: string
           created_at?: string
@@ -72,6 +74,7 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          ai_reasoning?: string | null
           answers?: Json
           candidate_name?: string
           created_at?: string
