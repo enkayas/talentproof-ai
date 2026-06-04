@@ -181,7 +181,7 @@ export function CreateLinkWizard() {
                   questions.
                 </h2>
                 <p className="text-sm text-muted-foreground mb-8">
-                  Select up to 3 questions. Shorter forms increase applicant completion by 80%.
+                  Select up to 5 questions. Shorter forms increase applicant completion by 80%.
                 </p>
 
                 <div className="space-y-3 mb-4">
