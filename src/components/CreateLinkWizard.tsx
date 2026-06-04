@@ -345,20 +345,35 @@ export function CreateLinkWizard() {
               />
             </div>
 
+            {publishError && (
+              <p className="text-sm text-red-400 mb-3">{publishError}</p>
+            )}
+
             <div className="flex items-center justify-between pt-4 border-t border-border">
               <button
                 onClick={() => setStep(2)}
-                className="inline-flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition-colors"
+                disabled={publishing}
+                className="inline-flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition-colors disabled:opacity-40"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </button>
               <button
-                onClick={() => setStep(4)}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+                onClick={handlePublish}
+                disabled={publishing}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Next: Publish Link
-                <ArrowRight className="h-4 w-4" />
+                {publishing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Publishing…
+                  </>
+                ) : (
+                  <>
+                    Publish Link
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
               </button>
             </div>
           </section>
