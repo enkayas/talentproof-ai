@@ -42,7 +42,11 @@ export function CreateLinkWizard() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
 
-  const generatedUrl = jobId ? `talentfirst.ai/apply/${jobId}` : "";
+  const appOrigin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://talentproof-ai.lovable.app";
+  const generatedUrl = jobId ? `${appOrigin}/apply/${jobId}` : "";
 
   const handleGenerate = async () => {
     if (!title.trim() || !desc.trim()) return;
@@ -90,7 +94,7 @@ export function CreateLinkWizard() {
   const handleCopy = async () => {
     if (!generatedUrl) return;
     try {
-      await navigator.clipboard.writeText(`https://${generatedUrl}`);
+      await navigator.clipboard.writeText(generatedUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
