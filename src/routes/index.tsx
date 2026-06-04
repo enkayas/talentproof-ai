@@ -65,7 +65,8 @@ function Nav() {
           </a>
         </nav>
         <Link
-          to="/login"
+          to="/auth"
+          search={{ mode: "login" }}
           className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition hover:opacity-90"
         >
           Recruiter Login
