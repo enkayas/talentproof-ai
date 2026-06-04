@@ -99,7 +99,8 @@ function Hero() {
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
-            to="/dashboard"
+            to="/auth"
+            search={{ mode: "signup" }}
             className="inline-flex items-center gap-2 rounded-full bg-foreground px-7 py-3.5 text-sm font-medium text-background transition hover:opacity-90"
           >
             Create a Job Link — it's free
