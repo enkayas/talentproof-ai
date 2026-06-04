@@ -1,7 +1,18 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Loader2, Mail, Phone, ExternalLink, Inbox, Download } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  Mail,
+  Phone,
+  ExternalLink,
+  Inbox,
+  Download,
+  Sparkles,
+  RefreshCw,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { scoreSubmission } from "@/lib/score-submission.functions";
 
 export const Route = createFileRoute("/_authenticated/jobs/$jobId")({
   head: () => ({
@@ -27,8 +38,38 @@ type Submission = {
   answers: string[];
   portfolio_link: string | null;
   cv_text: string | null;
+  qa_score: number | null;
+  ai_reasoning: string | null;
   created_at: string;
 };
+
+function ScoreBadge({ score, size = "sm" }: { score: number | null; size?: "sm" | "md" }) {
+  const px = size === "md" ? "px-3 py-1.5 text-sm" : "px-2.5 py-1 text-xs";
+  if (score === null || score === undefined) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-full ${px} font-medium bg-slate-800/60 text-slate-300 border border-slate-700/60 animate-pulse`}
+      >
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Evaluating…
+      </span>
+    );
+  }
+  const s = Math.round(score);
+  const tone =
+    s >= 80
+      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800/50"
+      : s >= 50
+      ? "bg-amber-950/40 text-amber-400 border-amber-800/50"
+      : "bg-rose-950/40 text-rose-400 border-rose-800/50";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full ${px} font-medium tabular-nums border ${tone}`}
+    >
+      {s}/100
+    </span>
+  );
+}
 
 function SubmissionsPage() {
   const { jobId } = useParams({ from: "/_authenticated/jobs/$jobId" });
@@ -36,53 +77,93 @@ function SubmissionsPage() {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [rescoring, setRescoring] = useState<Set<string>>(new Set());
+
+  const load = async () => {
+    const [{ data: jobData }, { data: subsData }] = await Promise.all([
+      supabase
+        .from("jobs")
+        .select("id, job_title, questions, require_link, require_cv")
+        .eq("id", jobId)
+        .maybeSingle(),
+      supabase
+        .from("submissions")
+        .select(
+          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, qa_score, ai_reasoning, created_at",
+        )
+        .eq("job_id", jobId)
+        .order("created_at", { ascending: false }),
+    ]);
+    if (jobData) {
+      setJob({
+        id: jobData.id,
+        job_title: jobData.job_title,
+        questions: Array.isArray(jobData.questions)
+          ? (jobData.questions as string[])
+          : [],
+        require_link: !!jobData.require_link,
+        require_cv: !!jobData.require_cv,
+      });
+    }
+    setSubs(
+      (subsData ?? []).map((s) => ({
+        ...s,
+        answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
+        qa_score: s.qa_score === null ? null : Number(s.qa_score),
+        ai_reasoning: (s as { ai_reasoning?: string | null }).ai_reasoning ?? null,
+      })),
+    );
+    setLoading(false);
+  };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [{ data: jobData }, { data: subsData }] = await Promise.all([
-        supabase
-          .from("jobs")
-          .select("id, job_title, questions, require_link, require_cv")
-          .eq("id", jobId)
-          .maybeSingle(),
-        supabase
-          .from("submissions")
-          .select(
-            "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, created_at",
-          )
-          .eq("job_id", jobId)
-          .order("created_at", { ascending: false }),
-      ]);
+      await load();
       if (cancelled) return;
-      if (jobData) {
-        setJob({
-          id: jobData.id,
-          job_title: jobData.job_title,
-          questions: Array.isArray(jobData.questions)
-            ? (jobData.questions as string[])
-            : [],
-          require_link: !!jobData.require_link,
-          require_cv: !!jobData.require_cv,
-        });
-      }
-      setSubs(
-        (subsData ?? []).map((s) => ({
-          ...s,
-          answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
-        })),
-      );
-      setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  // Auto-poll while any submission is still being evaluated
+  useEffect(() => {
+    const pending = subs.some((s) => s.qa_score === null);
+    if (!pending) return;
+    const t = setInterval(() => {
+      load();
+    }, 6000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subs]);
+
+  const rescore = async (id: string) => {
+    setRescoring((prev) => new Set(prev).add(id));
+    // Optimistically clear score so badge flips to "Evaluating…"
+    setSubs((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, qa_score: null, ai_reasoning: null } : s,
+      ),
+    );
+    try {
+      await scoreSubmission({ data: { submissionId: id } });
+      await load();
+    } finally {
+      setRescoring((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
 
   const exportCsv = () => {
     if (!job) return;
     const headers = [
       "Submitted At",
+      "Score",
       "Name",
       "Email",
       "WhatsApp",
@@ -90,9 +171,11 @@ function SubmissionsPage() {
       ...job.questions.map((q, i) => `Q${i + 1}: ${q}`),
       ...(job.require_link ? ["Portfolio Link"] : []),
       ...(job.require_cv ? ["CV Text"] : []),
+      "AI Reasoning",
     ];
     const rows = subs.map((s) => [
       new Date(s.created_at).toISOString(),
+      s.qa_score === null ? "" : String(Math.round(s.qa_score)),
       s.candidate_name,
       s.email,
       s.whatsapp ?? "",
@@ -100,6 +183,7 @@ function SubmissionsPage() {
       ...job.questions.map((_, i) => s.answers[i] ?? ""),
       ...(job.require_link ? [s.portfolio_link ?? ""] : []),
       ...(job.require_cv ? [s.cv_text ?? ""] : []),
+      s.ai_reasoning ?? "",
     ]);
     const csv = [headers, ...rows]
       .map((row) =>
@@ -197,7 +281,8 @@ function SubmissionsPage() {
               <div className="col-span-3">Email</div>
               <div className="col-span-2">WhatsApp</div>
               <div className="col-span-2">Submitted</div>
-              <div className="col-span-2 text-right">Answers</div>
+              <div className="col-span-1">Score</div>
+              <div className="col-span-1 text-right">Answers</div>
             </div>
 
             <div className="divide-y divide-border">
@@ -241,7 +326,24 @@ function SubmissionsPage() {
                           timeStyle: "short",
                         })}
                       </div>
-                      <div className="md:col-span-2 md:text-right">
+                      <div className="md:col-span-1 flex items-center gap-2">
+                        <ScoreBadge score={s.qa_score} />
+                      </div>
+                      <div className="md:col-span-1 md:text-right flex md:justify-end items-center gap-3">
+                        {s.qa_score !== null && (
+                          <button
+                            onClick={() => rescore(s.id)}
+                            disabled={rescoring.has(s.id)}
+                            title="Re-evaluate with AI"
+                            className="text-foreground/40 hover:text-accent-purple transition-colors disabled:opacity-50"
+                          >
+                            <RefreshCw
+                              className={`h-3.5 w-3.5 ${
+                                rescoring.has(s.id) ? "animate-spin" : ""
+                              }`}
+                            />
+                          </button>
+                        )}
                         <button
                           onClick={() => setExpanded(open ? null : s.id)}
                           className="text-xs font-medium text-accent-purple hover:underline"
@@ -253,6 +355,29 @@ function SubmissionsPage() {
 
                     {open && (
                       <div className="mt-5 space-y-5 pl-0 md:pl-2 border-l-2 border-accent-purple/30 md:ml-0">
+                        {/* AI Evaluation Report */}
+                        <div className="pl-4">
+                          <div className="flex items-center justify-between gap-3 mb-2">
+                            <p className="text-xs uppercase tracking-wider text-accent-purple inline-flex items-center gap-1.5">
+                              <Sparkles className="h-3 w-3" />
+                              AI Evaluation Report
+                            </p>
+                            <ScoreBadge score={s.qa_score} />
+                          </div>
+                          <div className="bg-gradient-to-br from-accent-purple/10 to-background/40 border border-accent-purple/20 rounded-xl p-4">
+                            {s.ai_reasoning ? (
+                              <p className="text-foreground/85 whitespace-pre-wrap leading-relaxed text-sm">
+                                {s.ai_reasoning}
+                              </p>
+                            ) : (
+                              <p className="text-foreground/50 italic text-sm inline-flex items-center gap-2">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Evaluation in progress…
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
                         {job.questions.map((q, i) => (
                           <div key={i} className="pl-4">
                             <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
