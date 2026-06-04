@@ -78,7 +78,7 @@ export function CreateLinkWizard() {
     setQuestions([...questions, customDraft.trim()]);
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.size < 3) next.add(newIdx);
+      if (next.size < 5) next.add(newIdx);
       return next;
     });
     setCustomDraft(null);
