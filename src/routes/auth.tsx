@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { ArrowRight, Loader2, Mail, Lock, Building2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 type AuthSearch = { mode?: "login" | "signup"; redirect?: string };
 
@@ -45,18 +46,42 @@ function AuthPage() {
   const [company, setCompany] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const isSignup = mode === "signup";
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
     try {
-      // TODO: wire to Supabase auth (signInWithPassword / signUp) once
-      // VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY are available.
-      await new Promise((r) => setTimeout(r, 600));
-      navigate({ to: redirect ?? "/dashboard" });
+      if (isSignup) {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/dashboard`,
+            data: { company: company.trim() || null },
+          },
+        });
+        if (signUpError) throw signUpError;
+        if (data.session) {
+          navigate({ to: (redirect ?? "/dashboard") as "/dashboard" });
+        } else {
+          setInfo(
+            "Account created. Check your email to confirm, then log in.",
+          );
+          setMode("login");
+        }
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (signInError) throw signInError;
+        navigate({ to: (redirect ?? "/dashboard") as "/dashboard" });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -103,7 +128,11 @@ function AuthPage() {
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-background/40 p-1">
             <button
               type="button"
-              onClick={() => setMode("login")}
+              onClick={() => {
+                setMode("login");
+                setError(null);
+                setInfo(null);
+              }}
               className={`rounded-lg py-2 text-sm font-medium transition ${
                 !isSignup
                   ? "bg-foreground text-background"
@@ -114,7 +143,11 @@ function AuthPage() {
             </button>
             <button
               type="button"
-              onClick={() => setMode("signup")}
+              onClick={() => {
+                setMode("signup");
+                setError(null);
+                setInfo(null);
+              }}
               className={`rounded-lg py-2 text-sm font-medium transition ${
                 isSignup
                   ? "bg-foreground text-background"
@@ -134,7 +167,6 @@ function AuthPage() {
                 placeholder="Acme Inc."
                 value={company}
                 onChange={setCompany}
-                required
               />
             )}
             <Field
@@ -160,6 +192,11 @@ function AuthPage() {
             {error && (
               <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
+              </p>
+            )}
+            {info && (
+              <p className="rounded-lg bg-accent-purple/10 px-3 py-2 text-sm text-foreground/80">
+                {info}
               </p>
             )}
 

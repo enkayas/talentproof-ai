@@ -107,6 +107,14 @@ export function CreateLinkWizard() {
     setPublishing(true);
     setPublishError(null);
 
+    const { data: userData } = await supabase.auth.getUser();
+    const ownerId = userData.user?.id;
+    if (!ownerId) {
+      setPublishError("You must be signed in to publish a link.");
+      setPublishing(false);
+      return;
+    }
+
     const baseSlug =
       title
         .toLowerCase()
@@ -127,6 +135,7 @@ export function CreateLinkWizard() {
         questions: selectedQuestions,
         require_link: reqLink,
         require_cv: reqCv,
+        owner_id: ownerId,
       });
 
       if (!error) {
