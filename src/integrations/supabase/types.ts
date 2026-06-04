@@ -41,6 +41,56 @@ export type Database = {
         }
         Relationships: []
       }
+      submissions: {
+        Row: {
+          answers: Json
+          candidate_name: string
+          created_at: string
+          cv_text: string | null
+          email: string
+          id: string
+          job_id: string
+          linkedin: string | null
+          portfolio_link: string | null
+          qa_score: number | null
+          whatsapp: string | null
+        }
+        Insert: {
+          answers?: Json
+          candidate_name: string
+          created_at?: string
+          cv_text?: string | null
+          email: string
+          id?: string
+          job_id: string
+          linkedin?: string | null
+          portfolio_link?: string | null
+          qa_score?: number | null
+          whatsapp?: string | null
+        }
+        Update: {
+          answers?: Json
+          candidate_name?: string
+          created_at?: string
+          cv_text?: string | null
+          email?: string
+          id?: string
+          job_id?: string
+          linkedin?: string | null
+          portfolio_link?: string | null
+          qa_score?: number | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submissions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
