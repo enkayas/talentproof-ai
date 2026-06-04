@@ -102,10 +102,10 @@ Evaluate now. Return JSON only.`;
       const match = content.match(/\{[\s\S]*\}/);
       if (!match) return { ok: false as const, reason: "no-json" };
       const parsed = JSON.parse(match[0]);
-      const s = Number(parsed?.score);
+      const s = Number(parsed?.final_score ?? parsed?.score);
       if (!Number.isFinite(s)) return { ok: false as const, reason: "bad-score" };
       score = Math.max(0, Math.min(100, Math.round(s)));
-      reasoning = String(parsed?.reasoning ?? "").slice(0, 600);
+      reasoning = String(parsed?.analysis_reasoning ?? parsed?.reasoning ?? "").slice(0, 600);
     } catch (e) {
       return { ok: false as const, reason: "exception" };
     }
