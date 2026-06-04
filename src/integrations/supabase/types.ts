@@ -14,7 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      jobs: {
+        Row: {
+          created_at: string
+          id: string
+          job_title: string
+          questions: Json
+          require_cv: boolean
+          require_link: boolean
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          job_title: string
+          questions?: Json
+          require_cv?: boolean
+          require_link?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_title?: string
+          questions?: Json
+          require_cv?: boolean
+          require_link?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
