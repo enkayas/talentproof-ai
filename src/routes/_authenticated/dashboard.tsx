@@ -1,19 +1,21 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
   Link2,
   PlusCircle,
   Users,
   LogOut,
   Copy,
-  Trophy,
   Check,
   Plus,
   Sparkles,
+  Loader2,
+  ArrowRight,
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
+import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Recruiter Dashboard — TalentFirst" },
@@ -32,25 +34,25 @@ const PURPLE_GLOW =
 
 type NavKey = "active" | "create" | "shortlist";
 
-const NAV_ITEMS: { key: NavKey; label: string; icon: typeof Link2; badge?: number }[] = [
+const NAV_ITEMS: { key: NavKey; label: string; icon: typeof Link2 }[] = [
   { key: "active", label: "Active Links", icon: Link2 },
   { key: "create", label: "Create New Link", icon: PlusCircle },
-  { key: "shortlist", label: "Shortlist Hub", icon: Users, badge: 12 },
+  { key: "shortlist", label: "Shortlist Hub", icon: Users },
 ];
 
-const JOBS = [
-  { title: "Social Media Intern", applicants: 42, top: 94 },
-  { title: "Customer Success Associate", applicants: 65, top: 96 },
-  { title: "Content Writer", applicants: 18, top: 89 },
-];
-
-const SCORERS = [
-  { id: 482, role: "Customer Success Associate", score: 96 },
-  { id: 479, role: "Social Media Intern", score: 92 },
-];
+type JobRow = {
+  id: string;
+  job_title: string;
+  created_at: string;
+  submission_count: number;
+};
 
 function DashboardPage() {
+  const navigate = useNavigate();
   const [active, setActive] = useState<NavKey>("active");
+  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+  const [email, setEmail] = useState<string>("");
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -58,6 +60,67 @@ function DashboardPage() {
     day: "numeric",
     year: "numeric",
   });
+
+  const loadJobs = async () => {
+    setLoadingJobs(true);
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    setEmail(userData.user?.email ?? "");
+    if (!uid) {
+      setJobs([]);
+      setLoadingJobs(false);
+      return;
+    }
+    const { data: jobsData } = await supabase
+      .from("jobs")
+      .select("id, job_title, created_at")
+      .eq("owner_id", uid)
+      .order("created_at", { ascending: false });
+
+    if (!jobsData) {
+      setJobs([]);
+      setLoadingJobs(false);
+      return;
+    }
+
+    // Count submissions per job
+    const ids = jobsData.map((j) => j.id);
+    let counts: Record<string, number> = {};
+    if (ids.length > 0) {
+      const { data: subs } = await supabase
+        .from("submissions")
+        .select("job_id")
+        .in("job_id", ids);
+      counts = (subs ?? []).reduce<Record<string, number>>((acc, s) => {
+        acc[s.job_id] = (acc[s.job_id] ?? 0) + 1;
+        return acc;
+      }, {});
+    }
+
+    setJobs(
+      jobsData.map((j) => ({
+        ...j,
+        submission_count: counts[j.id] ?? 0,
+      })),
+    );
+    setLoadingJobs(false);
+  };
+
+  useEffect(() => {
+    loadJobs();
+  }, []);
+
+  // Refresh when returning from "create"
+  useEffect(() => {
+    if (active === "active") loadJobs();
+  }, [active]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  };
+
+  const totalSubs = jobs.reduce((n, j) => n + j.submission_count, 0);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
@@ -91,17 +154,6 @@ function DashboardPage() {
               >
                 <Icon className="h-4 w-4" />
                 <span className="flex-1 text-left">{item.label}</span>
-                {item.badge != null && (
-                  <span
-                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                      isActive
-                        ? "bg-accent-purple text-background"
-                        : "bg-card text-foreground/80"
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
               </button>
             );
           })}
@@ -110,20 +162,22 @@ function DashboardPage() {
         <div className="px-3 pb-5 pt-4 border-t border-border">
           <div className="px-3 py-2 flex items-center gap-3">
             <div className="h-9 w-9 rounded-full bg-accent-purple/30 flex items-center justify-center text-sm font-semibold text-foreground">
-              A
+              {(email[0] ?? "R").toUpperCase()}
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-medium text-foreground truncate">Acme Corp</div>
+              <div className="text-sm font-medium text-foreground truncate">
+                {email || "Recruiter"}
+              </div>
               <div className="text-xs text-muted-foreground truncate">HR · Recruiter</div>
             </div>
           </div>
-          <Link
-            to="/"
+          <button
+            onClick={handleLogout}
             className="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-foreground/60 hover:text-foreground hover:bg-card transition-colors"
           >
             <LogOut className="h-4 w-4" />
             Logout
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -135,7 +189,6 @@ function DashboardPage() {
           style={{ background: PURPLE_GLOW }}
         />
 
-        {/* Mobile top bar */}
         <div className="md:hidden flex items-center gap-2 px-6 py-4 border-b border-border relative">
           <div className="flex h-8 w-10 items-center justify-center rounded-full border border-foreground/80">
             <div className="h-1.5 w-1.5 rounded-full bg-foreground" />
@@ -166,7 +219,6 @@ function DashboardPage() {
             </>
           ) : (
             <>
-              {/* Header */}
               <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
                 <div>
                   <h1 className="font-serif text-4xl md:text-5xl tracking-tight text-foreground">
@@ -184,60 +236,52 @@ function DashboardPage() {
                 </button>
               </header>
 
-              {/* Metric ribbon */}
               <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-                <MetricCard label="Active Links" value="4" />
-                <MetricCard label="Applicants Evaluated" value="1,240" />
-                <MetricCard label="Unlocked Candidates" value="12" accent />
+                <MetricCard label="Active Links" value={String(jobs.length)} />
+                <MetricCard label="Total Applicants" value={String(totalSubs)} />
+                <MetricCard
+                  label="Shortlisted"
+                  value="—"
+                  accent
+                />
               </section>
 
-              {/* Active Job Links */}
               <section className="mb-12">
                 <div className="flex items-baseline justify-between mb-5">
                   <h2 className="font-serif text-2xl md:text-3xl tracking-tight text-foreground">
                     Active Job <span className="italic text-accent-purple">Links</span>
                   </h2>
-                  <span className="text-xs text-muted-foreground">{JOBS.length} live</span>
+                  <span className="text-xs text-muted-foreground">
+                    {jobs.length} live
+                  </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {JOBS.map((job) => (
-                    <JobCard key={job.title} {...job} />
-                  ))}
-                </div>
-              </section>
 
-              {/* Recent High-Scorers */}
-              <section>
-                <h2 className="font-serif text-2xl md:text-3xl tracking-tight text-foreground mb-5">
-                  Recent <span className="italic text-accent-purple">High-Scorers</span>{" "}
-                  <span className="text-muted-foreground text-base align-middle">(Top 10%)</span>
-                </h2>
-                <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden">
-                  {SCORERS.map((s) => (
-                    <div
-                      key={s.id}
-                      className="flex items-center justify-between px-5 py-4 hover:bg-foreground/[0.03] transition-colors"
+                {loadingJobs ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
+                  </div>
+                ) : jobs.length === 0 ? (
+                  <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
+                    <Sparkles className="h-6 w-6 text-accent-purple mx-auto mb-3" />
+                    <p className="text-foreground font-medium mb-1">No screening links yet</p>
+                    <p className="text-sm text-muted-foreground mb-6">
+                      Create your first link to start receiving applications.
+                    </p>
+                    <button
+                      onClick={() => setActive("create")}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-9 w-9 rounded-full bg-accent-purple/15 flex items-center justify-center">
-                          <Sparkles className="h-4 w-4 text-accent-purple" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-foreground">
-                            Applicant #{s.id}
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            applied to {s.role}
-                          </div>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-purple text-background text-xs font-bold tabular-nums">
-                        <Trophy className="h-3 w-3" />
-                        {s.score}/100
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                      <Plus className="h-4 w-4" />
+                      Create New Link
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {jobs.map((job) => (
+                      <JobCard key={job.id} job={job} />
+                    ))}
+                  </div>
+                )}
               </section>
             </>
           )}
@@ -272,23 +316,12 @@ function MetricCard({
   );
 }
 
-function JobCard({
-  title,
-  applicants,
-  top,
-}: {
-  title: string;
-  applicants: number;
-  top: number;
-}) {
+function JobCard({ job }: { job: JobRow }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
-      const appOrigin = window.location.origin;
-      await navigator.clipboard.writeText(
-        `${appOrigin}/apply/${title.toLowerCase().replace(/\s+/g, "-")}`,
-      );
+      await navigator.clipboard.writeText(`${window.location.origin}/apply/${job.id}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -299,7 +332,9 @@ function JobCard({
   return (
     <div className="bg-card border border-border rounded-2xl p-6 flex flex-col hover:border-accent-purple/40 transition-colors">
       <div className="flex items-start justify-between gap-3 mb-4">
-        <h3 className="font-serif text-xl leading-snug text-foreground">{title}</h3>
+        <h3 className="font-serif text-xl leading-snug text-foreground line-clamp-2">
+          {job.job_title}
+        </h3>
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent-purple/15 border border-accent-purple/30 text-accent-purple text-[11px] font-semibold shrink-0">
           <span className="h-1.5 w-1.5 rounded-full bg-accent-purple" />
           Live
@@ -307,13 +342,10 @@ function JobCard({
       </div>
 
       <div className="text-sm text-muted-foreground mb-4">
-        <span className="font-semibold text-foreground tabular-nums">{applicants}</span>{" "}
-        Applicants
-      </div>
-
-      <div className="inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-full bg-foreground/5 border border-border text-foreground text-xs font-medium mb-6">
-        <Trophy className="h-3 w-3 text-accent-purple" />
-        Highest Score: {top}/100
+        <span className="font-semibold text-foreground tabular-nums">
+          {job.submission_count}
+        </span>{" "}
+        {job.submission_count === 1 ? "Applicant" : "Applicants"}
       </div>
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
@@ -328,10 +360,14 @@ function JobCard({
             <Copy className="h-4 w-4" />
           )}
         </button>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity">
-          View Leaderboard
-          <Trophy className="h-3.5 w-3.5" />
-        </button>
+        <Link
+          to="/jobs/$jobId"
+          params={{ jobId: job.id }}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+        >
+          View Submissions
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
     </div>
   );
