@@ -224,21 +224,23 @@ function DashboardPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-foreground">
-                        Applicant #{s.id}
+                            Applicant #{s.id}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            applied to {s.role}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        applied to {s.role}
-                      </div>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-purple text-background text-xs font-bold tabular-nums">
+                        <Trophy className="h-3 w-3" />
+                        {s.score}/100
+                      </span>
                     </div>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-purple text-background text-xs font-bold tabular-nums">
-                    <Trophy className="h-3 w-3" />
-                    {s.score}/100
-                  </span>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
+              </section>
+            </>
+          )}
         </div>
       </main>
     </div>
