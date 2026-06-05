@@ -83,8 +83,25 @@ function SubmissionsPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [rescoring, setRescoring] = useState<Set<string>>(new Set());
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  const closeApplication = async () => {
+    if (!job) return;
+    setClosing(true);
+    const { error } = await supabase
+      .from("jobs")
+      .update({ status: "closed" })
+      .eq("id", job.id);
+    setClosing(false);
+    if (!error) {
+      setJob({ ...job, status: "closed" });
+      setShowCloseModal(false);
+    }
+  };
 
   const load = async () => {
+
     const [{ data: jobData }, { data: subsData }] = await Promise.all([
       supabase
         .from("jobs")
