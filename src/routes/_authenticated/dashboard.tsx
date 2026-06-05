@@ -11,6 +11,8 @@ import {
   Sparkles,
   Loader2,
   ArrowRight,
+  Archive,
+  FolderArchive,
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,13 +34,15 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 const PURPLE_GLOW =
   "radial-gradient(50% 60% at 80% 0%, color-mix(in oklab, var(--accent-purple) 55%, transparent) 0%, transparent 70%)";
 
-type NavKey = "active" | "create" | "shortlist";
+type NavKey = "active" | "past" | "create" | "shortlist";
 
 const NAV_ITEMS: { key: NavKey; label: string; icon: typeof Link2 }[] = [
   { key: "active", label: "Active Links", icon: Link2 },
+  { key: "past", label: "Past Jobs", icon: FolderArchive },
   { key: "create", label: "Create New Link", icon: PlusCircle },
   { key: "shortlist", label: "Shortlist Hub", icon: Users },
 ];
+
 
 type JobRow = {
   id: string;
