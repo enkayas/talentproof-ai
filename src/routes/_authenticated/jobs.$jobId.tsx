@@ -88,7 +88,7 @@ function SubmissionsPage() {
     const [{ data: jobData }, { data: subsData }] = await Promise.all([
       supabase
         .from("jobs")
-        .select("id, job_title, questions, require_link, require_cv")
+        .select("id, job_title, questions, require_link, require_cv, status")
         .eq("id", jobId)
         .maybeSingle(),
       supabase
@@ -108,8 +108,10 @@ function SubmissionsPage() {
           : [],
         require_link: !!jobData.require_link,
         require_cv: !!jobData.require_cv,
+        status: (jobData as { status?: string }).status ?? "live",
       });
     }
+
     setSubs(
       (subsData ?? []).map((s) => ({
         ...s,
