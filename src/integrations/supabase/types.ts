@@ -56,6 +56,7 @@ export type Database = {
           cv_text: string | null
           email: string
           id: string
+          is_shortlisted: boolean
           job_id: string
           linkedin: string | null
           portfolio_link: string | null
@@ -70,6 +71,7 @@ export type Database = {
           cv_text?: string | null
           email: string
           id?: string
+          is_shortlisted?: boolean
           job_id: string
           linkedin?: string | null
           portfolio_link?: string | null
@@ -84,6 +86,7 @@ export type Database = {
           cv_text?: string | null
           email?: string
           id?: string
+          is_shortlisted?: boolean
           job_id?: string
           linkedin?: string | null
           portfolio_link?: string | null

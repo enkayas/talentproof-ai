@@ -13,8 +13,9 @@ import {
   Lock,
   X,
   Star,
-
+  Bookmark,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
 
@@ -48,6 +49,7 @@ type Submission = {
   qa_score: number | null;
   ai_reasoning: string | null;
   created_at: string;
+  is_shortlisted: boolean;
 };
 
 function ScoreBadge({ score, size = "sm" }: { score: number | null; size?: "sm" | "md" }) {
@@ -113,7 +115,7 @@ function SubmissionsPage() {
       supabase
         .from("submissions")
         .select(
-          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, qa_score, ai_reasoning, created_at",
+          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, qa_score, ai_reasoning, created_at, is_shortlisted",
         )
         .eq("job_id", jobId)
         .order("qa_score", { ascending: false, nullsFirst: false })
@@ -139,6 +141,7 @@ function SubmissionsPage() {
         answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
         qa_score: s.qa_score === null ? null : Number(s.qa_score),
         ai_reasoning: (s as { ai_reasoning?: string | null }).ai_reasoning ?? null,
+        is_shortlisted: !!(s as { is_shortlisted?: boolean }).is_shortlisted,
       })),
     );
     setLoading(false);
@@ -207,6 +210,22 @@ function SubmissionsPage() {
       });
     }
   };
+
+  const toggleShortlist = async (id: string, current: boolean) => {
+    const next = !current;
+    setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, is_shortlisted: next } : s)));
+    const { error } = await supabase
+      .from("submissions")
+      .update({ is_shortlisted: next })
+      .eq("id", id);
+    if (error) {
+      setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, is_shortlisted: current } : s)));
+      toast.error("Could not update shortlist.");
+      return;
+    }
+    toast.success(next ? "Candidate added to Shortlist Hub." : "Removed from shortlist.");
+  };
+
 
   const exportCsv = () => {
     if (!job) return;
@@ -494,6 +513,20 @@ function SubmissionsPage() {
                             />
                           </button>
                         )}
+                        <button
+                          onClick={() => toggleShortlist(s.id, s.is_shortlisted)}
+                          title={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
+                          className={`transition-colors ${
+                            s.is_shortlisted
+                              ? "text-accent-purple"
+                              : "text-foreground/30 hover:text-foreground/70"
+                          }`}
+                        >
+                          <Bookmark
+                            className="h-3.5 w-3.5"
+                            fill={s.is_shortlisted ? "currentColor" : "none"}
+                          />
+                        </button>
                         <button
                           onClick={() => setExpanded(open ? null : s.id)}
                           className="text-xs font-medium text-accent-purple hover:underline"
