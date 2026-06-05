@@ -333,13 +333,23 @@ function JobCard({ job }: { job: JobRow }) {
     }
   };
 
+  const CAP = 100;
+  const pct = Math.min(100, (job.submission_count / CAP) * 100);
+  const isFull = job.submission_count >= CAP;
+  const isClosed = job.status === "closed";
+
   return (
     <div className="bg-card border border-border rounded-2xl p-6 flex flex-col hover:border-accent-purple/40 transition-colors">
       <div className="flex items-start justify-between gap-3 mb-4">
         <h3 className="font-serif text-xl leading-snug text-foreground line-clamp-2">
           {job.job_title}
         </h3>
-        {job.status === "closed" ? (
+        {isFull ? (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-semibold shrink-0">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            Matured / Full
+          </span>
+        ) : isClosed ? (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-foreground/10 border border-border text-foreground/60 text-[11px] font-semibold shrink-0">
             <span className="h-1.5 w-1.5 rounded-full bg-foreground/40" />
             Closed
@@ -350,15 +360,39 @@ function JobCard({ job }: { job: JobRow }) {
             Live
           </span>
         )}
-
       </div>
 
-      <div className="text-sm text-muted-foreground mb-4">
-        <span className="font-semibold text-foreground tabular-nums">
-          {job.submission_count}
-        </span>{" "}
-        {job.submission_count === 1 ? "Applicant" : "Applicants"}
+      <div className="mb-4">
+        <div className="flex items-baseline justify-between mb-2">
+          <div className="text-sm text-foreground/80">
+            <span className="font-semibold text-foreground tabular-nums">
+              {job.submission_count}
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {" "}/ {CAP}
+            </span>{" "}
+            <span className="text-muted-foreground">
+              {job.submission_count === 1 ? "Applicant" : "Applicants"}
+            </span>
+          </div>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground tabular-nums">
+            {Math.round(pct)}%
+          </span>
+        </div>
+        <div className="h-1.5 w-full bg-foreground/10 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-700 ${
+              isFull
+                ? "bg-amber-400"
+                : pct >= 75
+                ? "bg-accent-purple"
+                : "bg-accent-purple/70"
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
+
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
         <button
