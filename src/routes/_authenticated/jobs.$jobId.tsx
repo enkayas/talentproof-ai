@@ -30,7 +30,9 @@ type Job = {
   questions: string[];
   require_link: boolean;
   require_cv: boolean;
+  status: string;
 };
+
 
 type Submission = {
   id: string;
