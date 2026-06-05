@@ -211,6 +211,20 @@ function SubmissionsPage() {
     }
   };
 
+  const toggleShortlist = async (id: string, current: boolean) => {
+    const next = !current;
+    setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, is_shortlisted: next } : s)));
+    const { error } = await supabase
+      .from("submissions")
+      .update({ is_shortlisted: next })
+      .eq("id", id);
+    if (error) {
+      setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, is_shortlisted: current } : s)));
+      toast.error("Could not update shortlist.");
+      return;
+    }
+    toast.success(next ? "Candidate added to Shortlist Hub." : "Removed from shortlist.");
+
   const exportCsv = () => {
     if (!job) return;
     const headers = [
