@@ -23,6 +23,7 @@ export type Database = {
           questions: Json
           require_cv: boolean
           require_link: boolean
+          status: string
         }
         Insert: {
           created_at?: string
@@ -32,6 +33,7 @@ export type Database = {
           questions?: Json
           require_cv?: boolean
           require_link?: boolean
+          status?: string
         }
         Update: {
           created_at?: string
@@ -41,6 +43,7 @@ export type Database = {
           questions?: Json
           require_cv?: boolean
           require_link?: boolean
+          status?: string
         }
         Relationships: []
       }
