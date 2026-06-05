@@ -62,6 +62,7 @@ function ApplyPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loadingJob, setLoadingJob] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [submissionCount, setSubmissionCount] = useState(0);
 
   // form state
   const [step, setStep] = useState(0); // 0 = identity, 1..N = questions, N+1 = proof, N+2 = submitting, N+3 = success
@@ -77,11 +78,17 @@ function ApplyPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from("jobs")
-        .select("id, job_title, questions, require_link, require_cv, status")
-        .eq("id", jobSlug)
-        .maybeSingle();
+      const [{ data, error }, { count }] = await Promise.all([
+        supabase
+          .from("jobs")
+          .select("id, job_title, questions, require_link, require_cv, status")
+          .eq("id", jobSlug)
+          .maybeSingle(),
+        supabase
+          .from("submissions")
+          .select("id", { count: "exact", head: true })
+          .eq("job_id", jobSlug),
+      ]);
 
       if (cancelled) return;
       if (error || !data) {
@@ -101,6 +108,7 @@ function ApplyPage() {
       };
 
       setJob(normalized);
+      setSubmissionCount(count ?? 0);
       setAnswers(new Array(normalized.questions.length).fill(""));
       setLoadingJob(false);
     })();
@@ -108,6 +116,7 @@ function ApplyPage() {
       cancelled = true;
     };
   }, [jobSlug]);
+
 
   const questionsCount = job?.questions.length ?? 0;
   const hasProofStep = !!(job?.require_link || job?.require_cv);
