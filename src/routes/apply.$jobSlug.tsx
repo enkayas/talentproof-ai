@@ -201,6 +201,25 @@ function ApplyPage() {
     );
   }
 
+  if (job.status === "closed") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-foreground/5 mb-6">
+            <AlertCircle className="h-6 w-6 text-foreground/60" />
+          </div>
+          <h1 className="font-serif text-3xl sm:text-4xl text-foreground mb-3">
+            Applications <span className="italic text-accent-purple">Closed.</span>
+          </h1>
+          <p className="text-muted-foreground leading-relaxed">
+            The recruiter is no longer accepting submissions for this position.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+
   const isIdentity = step === identityStepIdx;
   const isQuestion = step >= questionStartIdx && step <= questionEndIdx;
   const isProof = step === proofStepIdx;
