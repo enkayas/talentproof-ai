@@ -374,7 +374,7 @@ function MetricCard({
   );
 }
 
-function JobCard({ job }: { job: JobRow }) {
+function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -393,20 +393,30 @@ function JobCard({ job }: { job: JobRow }) {
   const isClosed = job.status === "closed";
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-6 flex flex-col hover:border-accent-purple/40 transition-colors">
+    <div
+      className={`bg-card border rounded-2xl p-6 flex flex-col transition-all ${
+        archived
+          ? "border-border/60 opacity-75 grayscale-[40%] hover:opacity-95 hover:grayscale-0 hover:border-border"
+          : "border-border hover:border-accent-purple/40"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3 mb-4">
-        <h3 className="font-serif text-xl leading-snug text-foreground line-clamp-2">
+        <h3
+          className={`font-serif text-xl leading-snug line-clamp-2 ${
+            archived ? "text-foreground/80" : "text-foreground"
+          }`}
+        >
           {job.job_title}
         </h3>
-        {isFull ? (
+        {archived || isClosed ? (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-foreground/10 border border-border text-foreground/60 text-[11px] font-semibold shrink-0">
+            <Archive className="h-3 w-3" />
+            Archived
+          </span>
+        ) : isFull ? (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-semibold shrink-0">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
             Matured / Full
-          </span>
-        ) : isClosed ? (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-foreground/10 border border-border text-foreground/60 text-[11px] font-semibold shrink-0">
-            <span className="h-1.5 w-1.5 rounded-full bg-foreground/40" />
-            Closed
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent-purple/15 border border-accent-purple/30 text-accent-purple text-[11px] font-semibold shrink-0">
@@ -436,7 +446,9 @@ function JobCard({ job }: { job: JobRow }) {
         <div className="h-1.5 w-full bg-foreground/10 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-700 ${
-              isFull
+              archived
+                ? "bg-foreground/30"
+                : isFull
                 ? "bg-amber-400"
                 : pct >= 75
                 ? "bg-accent-purple"
@@ -449,21 +461,32 @@ function JobCard({ job }: { job: JobRow }) {
 
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
-        <button
-          onClick={handleCopy}
-          aria-label="Copy link"
-          className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-border text-foreground/70 hover:bg-foreground/5 hover:text-foreground transition-colors"
-        >
-          {copied ? (
-            <Check className="h-4 w-4 text-accent-purple" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
-        </button>
+        {archived ? (
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5">
+            <Archive className="h-3 w-3" />
+            Read-only
+          </span>
+        ) : (
+          <button
+            onClick={handleCopy}
+            aria-label="Copy link"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-border text-foreground/70 hover:bg-foreground/5 hover:text-foreground transition-colors"
+          >
+            {copied ? (
+              <Check className="h-4 w-4 text-accent-purple" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </button>
+        )}
         <Link
           to="/jobs/$jobId"
           params={{ jobId: job.id }}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-90 ${
+            archived
+              ? "bg-foreground/80 text-background"
+              : "bg-foreground text-background"
+          }`}
         >
           View Submissions
           <ArrowRight className="h-3.5 w-3.5" />
@@ -472,3 +495,4 @@ function JobCard({ job }: { job: JobRow }) {
     </div>
   );
 }
+
