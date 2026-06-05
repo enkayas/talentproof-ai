@@ -228,6 +228,50 @@ function DashboardPage() {
               </header>
               <CreateLinkWizard />
             </>
+          ) : active === "past" ? (
+            <>
+              <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2 inline-flex items-center gap-2">
+                    <Archive className="h-3.5 w-3.5" />
+                    Archive
+                  </p>
+                  <h1 className="font-serif text-4xl md:text-5xl tracking-tight text-foreground">
+                    Past <span className="italic text-accent-purple">Jobs</span>
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Historical screenings — read-only. Submissions, answers, and
+                    CSV exports remain available.
+                  </p>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {pastJobs.length} archived
+                </span>
+              </header>
+
+              {loadingJobs ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
+                </div>
+              ) : pastJobs.length === 0 ? (
+                <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
+                  <FolderArchive className="h-6 w-6 text-foreground/40 mx-auto mb-3" />
+                  <p className="text-foreground font-medium mb-1">
+                    No past jobs yet
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Closed screening links will appear here for permanent
+                    record-keeping.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {pastJobs.map((job) => (
+                    <JobCard key={job.id} job={job} archived />
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <>
               <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
@@ -248,7 +292,7 @@ function DashboardPage() {
               </header>
 
               <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-                <MetricCard label="Active Links" value={String(jobs.length)} />
+                <MetricCard label="Active Links" value={String(activeJobs.length)} />
                 <MetricCard label="Total Applicants" value={String(totalSubs)} />
                 <MetricCard
                   label="Shortlisted"
@@ -263,7 +307,7 @@ function DashboardPage() {
                     Active Job <span className="italic text-accent-purple">Links</span>
                   </h2>
                   <span className="text-xs text-muted-foreground">
-                    {jobs.length} live
+                    {activeJobs.length} live
                   </span>
                 </div>
 
@@ -271,12 +315,14 @@ function DashboardPage() {
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
                   </div>
-                ) : jobs.length === 0 ? (
+                ) : activeJobs.length === 0 ? (
                   <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
                     <Sparkles className="h-6 w-6 text-accent-purple mx-auto mb-3" />
-                    <p className="text-foreground font-medium mb-1">No screening links yet</p>
+                    <p className="text-foreground font-medium mb-1">No active links</p>
                     <p className="text-sm text-muted-foreground mb-6">
-                      Create your first link to start receiving applications.
+                      {pastJobs.length > 0
+                        ? "All screenings are archived. Create a new link or browse Past Jobs."
+                        : "Create your first link to start receiving applications."}
                     </p>
                     <button
                       onClick={() => setActive("create")}
@@ -288,12 +334,13 @@ function DashboardPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {jobs.map((job) => (
+                    {activeJobs.map((job) => (
                       <JobCard key={job.id} job={job} />
                     ))}
                   </div>
                 )}
               </section>
+
             </>
           )}
         </div>
