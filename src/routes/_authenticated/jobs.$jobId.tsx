@@ -10,9 +10,12 @@ import {
   Download,
   Sparkles,
   RefreshCw,
+  Lock,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
+
 
 export const Route = createFileRoute("/_authenticated/jobs/$jobId")({
   head: () => ({
@@ -27,7 +30,9 @@ type Job = {
   questions: string[];
   require_link: boolean;
   require_cv: boolean;
+  status: string;
 };
+
 
 type Submission = {
   id: string;
@@ -78,12 +83,29 @@ function SubmissionsPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [rescoring, setRescoring] = useState<Set<string>>(new Set());
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  const closeApplication = async () => {
+    if (!job) return;
+    setClosing(true);
+    const { error } = await supabase
+      .from("jobs")
+      .update({ status: "closed" })
+      .eq("id", job.id);
+    setClosing(false);
+    if (!error) {
+      setJob({ ...job, status: "closed" });
+      setShowCloseModal(false);
+    }
+  };
 
   const load = async () => {
+
     const [{ data: jobData }, { data: subsData }] = await Promise.all([
       supabase
         .from("jobs")
-        .select("id, job_title, questions, require_link, require_cv")
+        .select("id, job_title, questions, require_link, require_cv, status")
         .eq("id", jobId)
         .maybeSingle(),
       supabase
@@ -103,8 +125,10 @@ function SubmissionsPage() {
           : [],
         require_link: !!jobData.require_link,
         require_cv: !!jobData.require_cv,
+        status: (jobData as { status?: string }).status ?? "live",
       });
     }
+
     setSubs(
       (subsData ?? []).map((s) => ({
         ...s,
@@ -268,23 +292,101 @@ function SubmissionsPage() {
             <p className="text-xs uppercase tracking-[0.18em] text-accent-purple mb-2">
               Submissions
             </p>
-            <h1 className="font-serif text-4xl md:text-5xl tracking-tight">
-              {job.job_title}
-            </h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="font-serif text-4xl md:text-5xl tracking-tight">
+                {job.job_title}
+              </h1>
+              {job.status === "closed" ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-foreground/10 border border-border text-foreground/60 text-[11px] font-semibold uppercase tracking-wider">
+                  <span className="h-1.5 w-1.5 rounded-full bg-foreground/40" />
+                  Closed
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-purple/15 border border-accent-purple/30 text-accent-purple text-[11px] font-semibold uppercase tracking-wider">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent-purple" />
+                  Live
+                </span>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground mt-2">
               {subs.length} {subs.length === 1 ? "candidate" : "candidates"} applied
             </p>
           </div>
-          {subs.length > 0 && (
-            <button
-              onClick={exportCsv}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-border text-foreground hover:bg-card text-sm font-medium transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              Export CSV
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {subs.length > 0 && (
+              <button
+                onClick={exportCsv}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-border text-foreground hover:bg-card text-sm font-medium transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </button>
+            )}
+            {job.status !== "closed" && (
+              <button
+                onClick={() => setShowCloseModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-rose-500/90 hover:bg-rose-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-rose-500/20"
+              >
+                <Lock className="h-4 w-4" />
+                Close Application
+              </button>
+            )}
+          </div>
         </header>
+
+        {showCloseModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4"
+            onClick={() => !closing && setShowCloseModal(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-md bg-card border border-border rounded-2xl p-6 shadow-2xl"
+            >
+              <button
+                onClick={() => !closing && setShowCloseModal(false)}
+                className="absolute top-4 right-4 text-foreground/40 hover:text-foreground transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/15 mb-4">
+                <Lock className="h-5 w-5 text-rose-400" />
+              </div>
+              <h3 className="font-serif text-2xl tracking-tight mb-2">
+                Close this application?
+              </h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Candidates will no longer be able to submit responses to this
+                link. You can still view all existing submissions. This cannot
+                be undone from the dashboard.
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setShowCloseModal(false)}
+                  disabled={closing}
+                  className="px-4 py-2 rounded-full text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={closeApplication}
+                  disabled={closing}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-500 hover:bg-rose-500/90 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  {closing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Lock className="h-4 w-4" />
+                  )}
+                  Confirm Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+
 
         {subs.length === 0 ? (
           <div className="bg-card border border-dashed border-border rounded-2xl p-16 text-center">

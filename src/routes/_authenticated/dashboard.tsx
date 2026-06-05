@@ -45,7 +45,9 @@ type JobRow = {
   job_title: string;
   created_at: string;
   submission_count: number;
+  status: string;
 };
+
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -73,7 +75,7 @@ function DashboardPage() {
     }
     const { data: jobsData } = await supabase
       .from("jobs")
-      .select("id, job_title, created_at")
+      .select("id, job_title, created_at, status")
       .eq("owner_id", uid)
       .order("created_at", { ascending: false });
 
@@ -101,8 +103,10 @@ function DashboardPage() {
       jobsData.map((j) => ({
         ...j,
         submission_count: counts[j.id] ?? 0,
+        status: (j as { status?: string }).status ?? "live",
       })),
     );
+
     setLoadingJobs(false);
   };
 
@@ -335,10 +339,18 @@ function JobCard({ job }: { job: JobRow }) {
         <h3 className="font-serif text-xl leading-snug text-foreground line-clamp-2">
           {job.job_title}
         </h3>
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent-purple/15 border border-accent-purple/30 text-accent-purple text-[11px] font-semibold shrink-0">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent-purple" />
-          Live
-        </span>
+        {job.status === "closed" ? (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-foreground/10 border border-border text-foreground/60 text-[11px] font-semibold shrink-0">
+            <span className="h-1.5 w-1.5 rounded-full bg-foreground/40" />
+            Closed
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent-purple/15 border border-accent-purple/30 text-accent-purple text-[11px] font-semibold shrink-0">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-purple" />
+            Live
+          </span>
+        )}
+
       </div>
 
       <div className="text-sm text-muted-foreground mb-4">

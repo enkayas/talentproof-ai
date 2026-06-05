@@ -32,7 +32,9 @@ type Job = {
   questions: string[];
   require_link: boolean;
   require_cv: boolean;
+  status: string;
 };
+
 
 const WORD_LIMIT = 150;
 const countWords = (s: string) =>
@@ -77,7 +79,7 @@ function ApplyPage() {
     (async () => {
       const { data, error } = await supabase
         .from("jobs")
-        .select("id, job_title, questions, require_link, require_cv")
+        .select("id, job_title, questions, require_link, require_cv, status")
         .eq("id", jobSlug)
         .maybeSingle();
 
@@ -95,7 +97,9 @@ function ApplyPage() {
           : [],
         require_link: !!data.require_link,
         require_cv: !!data.require_cv,
+        status: (data as { status?: string }).status ?? "live",
       };
+
       setJob(normalized);
       setAnswers(new Array(normalized.questions.length).fill(""));
       setLoadingJob(false);
@@ -196,6 +200,25 @@ function ApplyPage() {
       </div>
     );
   }
+
+  if (job.status === "closed") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-foreground/5 mb-6">
+            <AlertCircle className="h-6 w-6 text-foreground/60" />
+          </div>
+          <h1 className="font-serif text-3xl sm:text-4xl text-foreground mb-3">
+            Applications <span className="italic text-accent-purple">Closed.</span>
+          </h1>
+          <p className="text-muted-foreground leading-relaxed">
+            The recruiter is no longer accepting submissions for this position.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
 
   const isIdentity = step === identityStepIdx;
   const isQuestion = step >= questionStartIdx && step <= questionEndIdx;
