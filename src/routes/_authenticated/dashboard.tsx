@@ -120,7 +120,7 @@ function DashboardPage() {
 
   // Refresh when returning from "create"
   useEffect(() => {
-    if (active === "active") loadJobs();
+    if (active === "active" || active === "past") loadJobs();
   }, [active]);
 
   const handleLogout = async () => {
@@ -128,7 +128,10 @@ function DashboardPage() {
     navigate({ to: "/auth", replace: true });
   };
 
-  const totalSubs = jobs.reduce((n, j) => n + j.submission_count, 0);
+  const activeJobs = jobs.filter((j) => j.status !== "closed");
+  const pastJobs = jobs.filter((j) => j.status === "closed");
+  const totalSubs = activeJobs.reduce((n, j) => n + j.submission_count, 0);
+
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
