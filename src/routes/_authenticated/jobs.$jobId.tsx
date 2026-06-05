@@ -514,6 +514,20 @@ function SubmissionsPage() {
                           </button>
                         )}
                         <button
+                          onClick={() => toggleShortlist(s.id, s.is_shortlisted)}
+                          title={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
+                          className={`transition-colors ${
+                            s.is_shortlisted
+                              ? "text-accent-purple"
+                              : "text-foreground/30 hover:text-foreground/70"
+                          }`}
+                        >
+                          <Bookmark
+                            className="h-3.5 w-3.5"
+                            fill={s.is_shortlisted ? "currentColor" : "none"}
+                          />
+                        </button>
+                        <button
                           onClick={() => setExpanded(open ? null : s.id)}
                           className="text-xs font-medium text-accent-purple hover:underline"
                         >
