@@ -11,6 +11,8 @@ import {
   Sparkles,
   Loader2,
   ArrowRight,
+  Archive,
+  FolderArchive,
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,13 +34,15 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 const PURPLE_GLOW =
   "radial-gradient(50% 60% at 80% 0%, color-mix(in oklab, var(--accent-purple) 55%, transparent) 0%, transparent 70%)";
 
-type NavKey = "active" | "create" | "shortlist";
+type NavKey = "active" | "past" | "create" | "shortlist";
 
 const NAV_ITEMS: { key: NavKey; label: string; icon: typeof Link2 }[] = [
   { key: "active", label: "Active Links", icon: Link2 },
+  { key: "past", label: "Past Jobs", icon: FolderArchive },
   { key: "create", label: "Create New Link", icon: PlusCircle },
   { key: "shortlist", label: "Shortlist Hub", icon: Users },
 ];
+
 
 type JobRow = {
   id: string;
@@ -116,7 +120,7 @@ function DashboardPage() {
 
   // Refresh when returning from "create"
   useEffect(() => {
-    if (active === "active") loadJobs();
+    if (active === "active" || active === "past") loadJobs();
   }, [active]);
 
   const handleLogout = async () => {
@@ -124,7 +128,10 @@ function DashboardPage() {
     navigate({ to: "/auth", replace: true });
   };
 
-  const totalSubs = jobs.reduce((n, j) => n + j.submission_count, 0);
+  const activeJobs = jobs.filter((j) => j.status !== "closed");
+  const pastJobs = jobs.filter((j) => j.status === "closed");
+  const totalSubs = activeJobs.reduce((n, j) => n + j.submission_count, 0);
+
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
@@ -221,6 +228,50 @@ function DashboardPage() {
               </header>
               <CreateLinkWizard />
             </>
+          ) : active === "past" ? (
+            <>
+              <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2 inline-flex items-center gap-2">
+                    <Archive className="h-3.5 w-3.5" />
+                    Archive
+                  </p>
+                  <h1 className="font-serif text-4xl md:text-5xl tracking-tight text-foreground">
+                    Past <span className="italic text-accent-purple">Jobs</span>
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Historical screenings — read-only. Submissions, answers, and
+                    CSV exports remain available.
+                  </p>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {pastJobs.length} archived
+                </span>
+              </header>
+
+              {loadingJobs ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
+                </div>
+              ) : pastJobs.length === 0 ? (
+                <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
+                  <FolderArchive className="h-6 w-6 text-foreground/40 mx-auto mb-3" />
+                  <p className="text-foreground font-medium mb-1">
+                    No past jobs yet
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Closed screening links will appear here for permanent
+                    record-keeping.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {pastJobs.map((job) => (
+                    <JobCard key={job.id} job={job} archived />
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <>
               <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
@@ -241,7 +292,7 @@ function DashboardPage() {
               </header>
 
               <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-                <MetricCard label="Active Links" value={String(jobs.length)} />
+                <MetricCard label="Active Links" value={String(activeJobs.length)} />
                 <MetricCard label="Total Applicants" value={String(totalSubs)} />
                 <MetricCard
                   label="Shortlisted"
@@ -256,7 +307,7 @@ function DashboardPage() {
                     Active Job <span className="italic text-accent-purple">Links</span>
                   </h2>
                   <span className="text-xs text-muted-foreground">
-                    {jobs.length} live
+                    {activeJobs.length} live
                   </span>
                 </div>
 
@@ -264,12 +315,14 @@ function DashboardPage() {
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
                   </div>
-                ) : jobs.length === 0 ? (
+                ) : activeJobs.length === 0 ? (
                   <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
                     <Sparkles className="h-6 w-6 text-accent-purple mx-auto mb-3" />
-                    <p className="text-foreground font-medium mb-1">No screening links yet</p>
+                    <p className="text-foreground font-medium mb-1">No active links</p>
                     <p className="text-sm text-muted-foreground mb-6">
-                      Create your first link to start receiving applications.
+                      {pastJobs.length > 0
+                        ? "All screenings are archived. Create a new link or browse Past Jobs."
+                        : "Create your first link to start receiving applications."}
                     </p>
                     <button
                       onClick={() => setActive("create")}
@@ -281,12 +334,13 @@ function DashboardPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {jobs.map((job) => (
+                    {activeJobs.map((job) => (
                       <JobCard key={job.id} job={job} />
                     ))}
                   </div>
                 )}
               </section>
+
             </>
           )}
         </div>
@@ -320,7 +374,7 @@ function MetricCard({
   );
 }
 
-function JobCard({ job }: { job: JobRow }) {
+function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -339,20 +393,30 @@ function JobCard({ job }: { job: JobRow }) {
   const isClosed = job.status === "closed";
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-6 flex flex-col hover:border-accent-purple/40 transition-colors">
+    <div
+      className={`bg-card border rounded-2xl p-6 flex flex-col transition-all ${
+        archived
+          ? "border-border/60 opacity-75 grayscale-[40%] hover:opacity-95 hover:grayscale-0 hover:border-border"
+          : "border-border hover:border-accent-purple/40"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3 mb-4">
-        <h3 className="font-serif text-xl leading-snug text-foreground line-clamp-2">
+        <h3
+          className={`font-serif text-xl leading-snug line-clamp-2 ${
+            archived ? "text-foreground/80" : "text-foreground"
+          }`}
+        >
           {job.job_title}
         </h3>
-        {isFull ? (
+        {archived || isClosed ? (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-foreground/10 border border-border text-foreground/60 text-[11px] font-semibold shrink-0">
+            <Archive className="h-3 w-3" />
+            Archived
+          </span>
+        ) : isFull ? (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-semibold shrink-0">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
             Matured / Full
-          </span>
-        ) : isClosed ? (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-foreground/10 border border-border text-foreground/60 text-[11px] font-semibold shrink-0">
-            <span className="h-1.5 w-1.5 rounded-full bg-foreground/40" />
-            Closed
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent-purple/15 border border-accent-purple/30 text-accent-purple text-[11px] font-semibold shrink-0">
@@ -382,7 +446,9 @@ function JobCard({ job }: { job: JobRow }) {
         <div className="h-1.5 w-full bg-foreground/10 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-700 ${
-              isFull
+              archived
+                ? "bg-foreground/30"
+                : isFull
                 ? "bg-amber-400"
                 : pct >= 75
                 ? "bg-accent-purple"
@@ -395,21 +461,32 @@ function JobCard({ job }: { job: JobRow }) {
 
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
-        <button
-          onClick={handleCopy}
-          aria-label="Copy link"
-          className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-border text-foreground/70 hover:bg-foreground/5 hover:text-foreground transition-colors"
-        >
-          {copied ? (
-            <Check className="h-4 w-4 text-accent-purple" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
-        </button>
+        {archived ? (
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5">
+            <Archive className="h-3 w-3" />
+            Read-only
+          </span>
+        ) : (
+          <button
+            onClick={handleCopy}
+            aria-label="Copy link"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-border text-foreground/70 hover:bg-foreground/5 hover:text-foreground transition-colors"
+          >
+            {copied ? (
+              <Check className="h-4 w-4 text-accent-purple" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </button>
+        )}
         <Link
           to="/jobs/$jobId"
           params={{ jobId: job.id }}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-90 ${
+            archived
+              ? "bg-foreground/80 text-background"
+              : "bg-foreground text-background"
+          }`}
         >
           View Submissions
           <ArrowRight className="h-3.5 w-3.5" />
@@ -418,3 +495,4 @@ function JobCard({ job }: { job: JobRow }) {
     </div>
   );
 }
+
