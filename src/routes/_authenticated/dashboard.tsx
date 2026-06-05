@@ -75,7 +75,7 @@ function DashboardPage() {
     }
     const { data: jobsData } = await supabase
       .from("jobs")
-      .select("id, job_title, created_at")
+      .select("id, job_title, created_at, status")
       .eq("owner_id", uid)
       .order("created_at", { ascending: false });
 
@@ -103,8 +103,10 @@ function DashboardPage() {
       jobsData.map((j) => ({
         ...j,
         submission_count: counts[j.id] ?? 0,
+        status: (j as { status?: string }).status ?? "live",
       })),
     );
+
     setLoadingJobs(false);
   };
 
