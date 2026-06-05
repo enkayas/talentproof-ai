@@ -502,3 +502,217 @@ function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean })
   );
 }
 
+type ShortlistRow = {
+  id: string;
+  candidate_name: string;
+  email: string;
+  whatsapp: string | null;
+  linkedin: string | null;
+  qa_score: number | null;
+  created_at: string;
+  job_id: string;
+  job_title: string;
+};
+
+function ShortlistHub() {
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState<ShortlistRow[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (!uid) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+      const { data: jobsData } = await supabase
+        .from("jobs")
+        .select("id, job_title")
+        .eq("owner_id", uid);
+      const jobs = jobsData ?? [];
+      const jobMap = new Map(jobs.map((j) => [j.id, j.job_title]));
+      const ids = jobs.map((j) => j.id);
+      if (ids.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+      const { data: subs } = await supabase
+        .from("submissions")
+        .select(
+          "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, is_shortlisted",
+        )
+        .in("job_id", ids)
+        .eq("is_shortlisted", true)
+        .order("qa_score", { ascending: false, nullsFirst: false });
+      setRows(
+        (subs ?? []).map((s) => ({
+          id: s.id,
+          candidate_name: s.candidate_name,
+          email: s.email,
+          whatsapp: s.whatsapp,
+          linkedin: s.linkedin,
+          qa_score: s.qa_score === null ? null : Number(s.qa_score),
+          created_at: s.created_at,
+          job_id: s.job_id,
+          job_title: jobMap.get(s.job_id) ?? "Untitled role",
+        })),
+      );
+      setLoading(false);
+    })();
+  }, []);
+
+  const grouped = rows.reduce<Record<string, { jobId: string; title: string; items: ShortlistRow[] }>>(
+    (acc, r) => {
+      if (!acc[r.job_id]) acc[r.job_id] = { jobId: r.job_id, title: r.job_title, items: [] };
+      acc[r.job_id].items.push(r);
+      return acc;
+    },
+    {},
+  );
+  const groups = Object.values(grouped);
+
+  return (
+    <>
+      <header className="mb-10">
+        <p className="text-xs uppercase tracking-[0.18em] text-accent-purple mb-2 inline-flex items-center gap-2">
+          <Bookmark className="h-3.5 w-3.5" />
+          Shortlist
+        </p>
+        <h1 className="font-serif text-4xl md:text-5xl tracking-tight text-foreground">
+          Shortlist <span className="italic text-accent-purple">Hub</span>
+        </h1>
+        <p className="text-sm text-muted-foreground mt-3 max-w-2xl">
+          Central command for all manually approved, high-capability candidate
+          profiles across your active and past roles.
+        </p>
+      </header>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
+        </div>
+      ) : groups.length === 0 ? (
+        <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center max-w-xl mx-auto">
+          <Inbox className="h-6 w-6 text-foreground/40 mx-auto mb-3" />
+          <p className="text-foreground font-medium mb-1">
+            No candidates shortlisted yet
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Open an active job leaderboard to highlight your top capability matches.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groups.map((g) => (
+            <section
+              key={g.jobId}
+              className="bg-card border border-border rounded-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-border bg-foreground/[0.03]">
+                <div className="min-w-0">
+                  <h2 className="font-serif text-xl tracking-tight text-foreground truncate">
+                    {g.title}
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {g.items.length}{" "}
+                    {g.items.length === 1 ? "Candidate" : "Candidates"} Selected
+                  </p>
+                </div>
+                <Link
+                  to="/jobs/$jobId"
+                  params={{ jobId: g.jobId }}
+                  className="text-xs font-medium text-accent-purple hover:underline inline-flex items-center gap-1 shrink-0"
+                >
+                  Open leaderboard
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-px bg-border">
+                {g.items.map((c) => (
+                  <ShortlistCandidateCard key={c.id} c={c} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ScorePill({ score }: { score: number | null }) {
+  if (score === null) {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-slate-800/60 text-slate-300 border border-slate-700/60">
+        Pending
+      </span>
+    );
+  }
+  const s = Math.round(score);
+  const tone =
+    s >= 80
+      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800/50"
+      : s >= 50
+      ? "bg-amber-950/40 text-amber-400 border-amber-800/50"
+      : "bg-rose-950/40 text-rose-400 border-rose-800/50";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums border ${tone}`}
+    >
+      {s}/100
+    </span>
+  );
+}
+
+function ShortlistCandidateCard({ c }: { c: ShortlistRow }) {
+  const waDigits = (c.whatsapp ?? "").replace(/[^\d]/g, "");
+  const waHref = waDigits ? `https://wa.me/${waDigits}` : null;
+  return (
+    <div className="bg-card p-5 flex flex-col gap-3 hover:bg-foreground/[0.02] transition-colors">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-medium text-foreground truncate">
+            {c.candidate_name}
+          </div>
+          <div className="text-xs text-muted-foreground truncate">{c.email}</div>
+        </div>
+        <ScorePill score={c.qa_score} />
+      </div>
+
+      <div className="flex items-center gap-2 mt-1">
+        {waHref ? (
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-medium hover:bg-emerald-500/25 transition-colors"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            WhatsApp
+          </a>
+        ) : (
+          <a
+            href={`mailto:${c.email}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground/5 border border-border text-foreground/70 text-xs font-medium hover:text-foreground transition-colors"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Email
+          </a>
+        )}
+        <Link
+          to="/jobs/$jobId"
+          params={{ jobId: c.job_id }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent-purple/15 border border-accent-purple/30 text-accent-purple text-xs font-medium hover:bg-accent-purple/25 transition-colors"
+        >
+          View Full Profile
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
