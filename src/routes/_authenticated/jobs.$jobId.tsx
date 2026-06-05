@@ -12,6 +12,8 @@ import {
   RefreshCw,
   Lock,
   X,
+  Star,
+
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
@@ -114,7 +116,9 @@ function SubmissionsPage() {
           "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, qa_score, ai_reasoning, created_at",
         )
         .eq("job_id", jobId)
+        .order("qa_score", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false }),
+
     ]);
     if (jobData) {
       setJob({
@@ -399,21 +403,43 @@ function SubmissionsPage() {
         ) : (
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             {/* Table header */}
-            <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 border-b border-border bg-foreground/5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+            <div className="hidden md:grid grid-cols-14 gap-4 px-6 py-3 border-b border-border bg-foreground/5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+              <div className="col-span-1">Rank</div>
               <div className="col-span-3">Candidate</div>
               <div className="col-span-3">Email</div>
               <div className="col-span-2">WhatsApp</div>
               <div className="col-span-2">Submitted</div>
-              <div className="col-span-1">Score</div>
+              <div className="col-span-2">Score</div>
               <div className="col-span-1 text-right">Answers</div>
             </div>
 
             <div className="divide-y divide-border">
-              {subs.map((s) => {
+              {subs.map((s, idx) => {
                 const open = expanded === s.id;
+                const isElite = s.qa_score !== null && s.qa_score >= 80;
+                const isTop = idx === 0 && s.qa_score !== null;
                 return (
-                  <div key={s.id} className="px-6 py-4">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 items-center">
+                  <div
+                    key={s.id}
+                    className={`px-6 py-4 transition-colors ${
+                      isElite
+                        ? "bg-emerald-500/[0.04] shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25),0_0_24px_-8px_rgba(16,185,129,0.35)]"
+                        : ""
+                    }`}
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-14 gap-2 md:gap-4 items-center">
+                      <div className="md:col-span-1 flex items-center gap-1.5">
+                        {isTop ? (
+                          <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-400/15 border border-amber-400/40">
+                            <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-foreground/5 border border-border text-[11px] font-semibold tabular-nums text-foreground/70">
+                            #{idx + 1}
+                          </span>
+                        )}
+                      </div>
+
                       <div className="md:col-span-3">
                         <div className="font-medium text-foreground">
                           {s.candidate_name}
@@ -449,9 +475,10 @@ function SubmissionsPage() {
                           timeStyle: "short",
                         })}
                       </div>
-                      <div className="md:col-span-1 flex items-center gap-2">
+                      <div className="md:col-span-2 flex items-center gap-2">
                         <ScoreBadge score={s.qa_score} />
                       </div>
+
                       <div className="md:col-span-1 md:text-right flex md:justify-end items-center gap-3">
                         {s.qa_score !== null && (
                           <button
