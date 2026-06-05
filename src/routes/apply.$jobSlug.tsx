@@ -79,7 +79,7 @@ function ApplyPage() {
     (async () => {
       const { data, error } = await supabase
         .from("jobs")
-        .select("id, job_title, questions, require_link, require_cv")
+        .select("id, job_title, questions, require_link, require_cv, status")
         .eq("id", jobSlug)
         .maybeSingle();
 
@@ -97,7 +97,9 @@ function ApplyPage() {
           : [],
         require_link: !!data.require_link,
         require_cv: !!data.require_cv,
+        status: (data as { status?: string }).status ?? "live",
       };
+
       setJob(normalized);
       setAnswers(new Array(normalized.questions.length).fill(""));
       setLoadingJob(false);
