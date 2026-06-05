@@ -475,9 +475,10 @@ function SubmissionsPage() {
                           timeStyle: "short",
                         })}
                       </div>
-                      <div className="md:col-span-1 flex items-center gap-2">
+                      <div className="md:col-span-2 flex items-center gap-2">
                         <ScoreBadge score={s.qa_score} />
                       </div>
+
                       <div className="md:col-span-1 md:text-right flex md:justify-end items-center gap-3">
                         {s.qa_score !== null && (
                           <button
