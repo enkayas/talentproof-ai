@@ -45,7 +45,9 @@ type JobRow = {
   job_title: string;
   created_at: string;
   submission_count: number;
+  status: string;
 };
+
 
 function DashboardPage() {
   const navigate = useNavigate();
