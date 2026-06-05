@@ -141,6 +141,7 @@ function SubmissionsPage() {
         answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
         qa_score: s.qa_score === null ? null : Number(s.qa_score),
         ai_reasoning: (s as { ai_reasoning?: string | null }).ai_reasoning ?? null,
+        is_shortlisted: !!(s as { is_shortlisted?: boolean }).is_shortlisted,
       })),
     );
     setLoading(false);
