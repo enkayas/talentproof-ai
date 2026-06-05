@@ -49,6 +49,7 @@ type Submission = {
   qa_score: number | null;
   ai_reasoning: string | null;
   created_at: string;
+  is_shortlisted: boolean;
 };
 
 function ScoreBadge({ score, size = "sm" }: { score: number | null; size?: "sm" | "md" }) {
