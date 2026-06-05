@@ -10,9 +10,12 @@ import {
   Download,
   Sparkles,
   RefreshCw,
+  Lock,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
+
 
 export const Route = createFileRoute("/_authenticated/jobs/$jobId")({
   head: () => ({
