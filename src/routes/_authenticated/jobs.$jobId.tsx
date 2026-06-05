@@ -224,6 +224,8 @@ function SubmissionsPage() {
       return;
     }
     toast.success(next ? "Candidate added to Shortlist Hub." : "Removed from shortlist.");
+  };
+
 
   const exportCsv = () => {
     if (!job) return;
