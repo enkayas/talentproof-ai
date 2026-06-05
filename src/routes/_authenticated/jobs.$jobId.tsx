@@ -115,7 +115,7 @@ function SubmissionsPage() {
       supabase
         .from("submissions")
         .select(
-          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, qa_score, ai_reasoning, created_at",
+          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, qa_score, ai_reasoning, created_at, is_shortlisted",
         )
         .eq("job_id", jobId)
         .order("qa_score", { ascending: false, nullsFirst: false })
