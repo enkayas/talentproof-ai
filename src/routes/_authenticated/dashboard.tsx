@@ -272,6 +272,8 @@ function DashboardPage() {
                 </div>
               )}
             </>
+          ) : active === "shortlist" ? (
+            <ShortlistHub />
           ) : (
             <>
               <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
