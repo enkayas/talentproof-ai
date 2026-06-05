@@ -13,6 +13,10 @@ import {
   ArrowRight,
   Archive,
   FolderArchive,
+  Bookmark,
+  MessageCircle,
+  Mail,
+  Inbox,
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 import { supabase } from "@/integrations/supabase/client";
