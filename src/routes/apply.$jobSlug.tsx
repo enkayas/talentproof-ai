@@ -228,6 +228,26 @@ function ApplyPage() {
     );
   }
 
+  if (submissionCount >= 100) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent-purple/10 mb-6">
+            <AlertCircle className="h-6 w-6 text-accent-purple" />
+          </div>
+          <h1 className="font-serif text-3xl sm:text-4xl text-foreground mb-3">
+            Application{" "}
+            <span className="italic text-accent-purple">Limit Reached.</span>
+          </h1>
+          <p className="text-muted-foreground leading-relaxed">
+            This position has automatically closed after hitting its maximum
+            capacity of 100 early-bird candidate responses.
+          </p>
+        </div>
+      </div>
+    );
+
+
 
   const isIdentity = step === identityStepIdx;
   const isQuestion = step >= questionStartIdx && step <= questionEndIdx;
