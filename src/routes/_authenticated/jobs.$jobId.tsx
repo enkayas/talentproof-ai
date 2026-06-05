@@ -386,7 +386,7 @@ function SubmissionsPage() {
           </div>
         )}
 
-        </header>
+
 
         {subs.length === 0 ? (
           <div className="bg-card border border-dashed border-border rounded-2xl p-16 text-center">
