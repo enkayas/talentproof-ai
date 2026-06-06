@@ -19,7 +19,7 @@ export type Database = {
           created_at: string
           id: string
           job_title: string
-          owner_id: string | null
+          owner_id: string
           questions: Json
           require_cv: boolean
           require_link: boolean
@@ -29,7 +29,7 @@ export type Database = {
           created_at?: string
           id: string
           job_title: string
-          owner_id?: string | null
+          owner_id?: string
           questions?: Json
           require_cv?: boolean
           require_link?: boolean
@@ -39,7 +39,7 @@ export type Database = {
           created_at?: string
           id?: string
           job_title?: string
-          owner_id?: string | null
+          owner_id?: string
           questions?: Json
           require_cv?: boolean
           require_link?: boolean
