@@ -205,22 +205,23 @@ function SubmissionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
-  // Auto-poll while any submission is still being evaluated
+  // P2/P3: derive a stable boolean so the poll interval doesn't re-arm on every state change.
+  const hasPending = subs.some((s) => s.qa_score === null);
   useEffect(() => {
-    const pending = subs.some((s) => s.qa_score === null);
-    if (!pending) return;
+    if (!hasPending) return;
     const t = setInterval(() => {
       load();
     }, 6000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subs]);
+  }, [hasPending]);
 
   // Auto-retry: if a submission has been "Evaluating…" for >60s, kick off
   // scoreSubmission once. Backfills existing stuck rows on first load too.
   // Guarded by a ref Set so each row is only retried once per session.
   const retriedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    if (!hasPending) return;
     const stuck = subs.filter((s) => {
       if (s.qa_score !== null) return false;
       if (retriedRef.current.has(s.id)) return false;
@@ -235,7 +236,7 @@ function SubmissionsPage() {
         .catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subs]);
+  }, [hasPending]);
 
   const rescore = async (id: string) => {
     setRescoring((prev) => new Set(prev).add(id));
