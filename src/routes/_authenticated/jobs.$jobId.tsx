@@ -97,9 +97,18 @@ function SubmissionsPage() {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [contactOpen, setContactOpen] = useState<Set<string>>(new Set());
   const [rescoring, setRescoring] = useState<Set<string>>(new Set());
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [closing, setClosing] = useState(false);
+
+  const toggleContact = (id: string) =>
+    setContactOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const closeApplication = async () => {
     if (!job) return;
