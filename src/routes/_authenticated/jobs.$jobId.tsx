@@ -448,10 +448,11 @@ function SubmissionsPage() {
               <div className="col-span-1">Rank</div>
               <div className="col-span-3">Candidate</div>
               <div className="col-span-3">Email</div>
-              <div className="col-span-2">WhatsApp</div>
-              <div className="col-span-2">Submitted</div>
-              <div className="col-span-2">Score</div>
-              <div className="col-span-1 text-right">Answers</div>
+              <div className="col-span-1">Submitted</div>
+              <div className="col-span-2">Answer Score</div>
+              <div className="col-span-2">CV Score</div>
+              <div className="col-span-1">Shortlist</div>
+              <div className="col-span-1 text-right">Details</div>
             </div>
 
             <div className="divide-y divide-border">
