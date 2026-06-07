@@ -14,6 +14,8 @@ import {
   X,
   Star,
   Bookmark,
+  CheckCircle2,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +39,12 @@ type Job = {
 };
 
 
+type CvAnalysis = {
+  key_matches?: string[];
+  cv_summary?: string;
+  error?: string;
+};
+
 type Submission = {
   id: string;
   candidate_name: string;
@@ -48,6 +56,8 @@ type Submission = {
   cv_text: string | null;
   cv_file_path: string | null;
   qa_score: number | null;
+  cv_score: number | null;
+  cv_analysis: CvAnalysis | null;
   ai_reasoning: string | null;
   created_at: string;
   is_shortlisted: boolean;
@@ -116,7 +126,7 @@ function SubmissionsPage() {
       supabase
         .from("submissions")
         .select(
-          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, ai_reasoning, created_at, is_shortlisted",
+          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, cv_score, cv_analysis, ai_reasoning, created_at, is_shortlisted",
         )
         .eq("job_id", jobId)
         .order("qa_score", { ascending: false, nullsFirst: false })
@@ -137,14 +147,22 @@ function SubmissionsPage() {
     }
 
     setSubs(
-      (subsData ?? []).map((s) => ({
-        ...s,
-        answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
-        qa_score: s.qa_score === null ? null : Number(s.qa_score),
-        ai_reasoning: (s as { ai_reasoning?: string | null }).ai_reasoning ?? null,
-        cv_file_path: (s as { cv_file_path?: string | null }).cv_file_path ?? null,
-        is_shortlisted: !!(s as { is_shortlisted?: boolean }).is_shortlisted,
-      })),
+      (subsData ?? []).map((s) => {
+        const row = s as Record<string, unknown>;
+        return {
+          ...s,
+          answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
+          qa_score: s.qa_score === null ? null : Number(s.qa_score),
+          cv_score:
+            row.cv_score === null || row.cv_score === undefined
+              ? null
+              : Number(row.cv_score),
+          cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
+          ai_reasoning: (row.ai_reasoning as string | null) ?? null,
+          cv_file_path: (row.cv_file_path as string | null) ?? null,
+          is_shortlisted: !!row.is_shortlisted,
+        } as Submission;
+      }),
     );
     setLoading(false);
   };
@@ -195,10 +213,12 @@ function SubmissionsPage() {
 
   const rescore = async (id: string) => {
     setRescoring((prev) => new Set(prev).add(id));
-    // Optimistically clear score so badge flips to "Evaluating…"
+    // Optimistically clear scores so badges flip to "Evaluating…"
     setSubs((prev) =>
       prev.map((s) =>
-        s.id === id ? { ...s, qa_score: null, ai_reasoning: null } : s,
+        s.id === id
+          ? { ...s, qa_score: null, cv_score: null, cv_analysis: null, ai_reasoning: null }
+          : s,
       ),
     );
     try {
@@ -427,11 +447,12 @@ function SubmissionsPage() {
             <div className="hidden md:grid grid-cols-14 gap-4 px-6 py-3 border-b border-border bg-foreground/5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
               <div className="col-span-1">Rank</div>
               <div className="col-span-3">Candidate</div>
-              <div className="col-span-3">Email</div>
+              <div className="col-span-2">Email</div>
               <div className="col-span-2">WhatsApp</div>
-              <div className="col-span-2">Submitted</div>
-              <div className="col-span-2">Score</div>
-              <div className="col-span-1 text-right">Answers</div>
+              <div className="col-span-1">Submitted</div>
+              <div className="col-span-2">Answer Score</div>
+              <div className="col-span-2">CV Score</div>
+              <div className="col-span-1 text-right">Actions</div>
             </div>
 
             <div className="divide-y divide-border">
@@ -480,7 +501,7 @@ function SubmissionsPage() {
                           </a>
                         )}
                       </div>
-                      <div className="md:col-span-3 text-sm text-foreground/80 inline-flex items-center gap-2 min-w-0">
+                      <div className="md:col-span-2 text-sm text-foreground/80 inline-flex items-center gap-2 min-w-0">
                         <Mail className="h-3.5 w-3.5 text-foreground/40 shrink-0" />
                         <a href={`mailto:${s.email}`} className="truncate hover:text-foreground">
                           {s.email}
@@ -490,15 +511,19 @@ function SubmissionsPage() {
                         <Phone className="h-3.5 w-3.5 text-foreground/40 shrink-0" />
                         {s.whatsapp || "—"}
                       </div>
-                      <div className="md:col-span-2 text-xs text-muted-foreground tabular-nums">
+                      <div className="md:col-span-1 text-xs text-muted-foreground tabular-nums">
                         {new Date(s.created_at).toLocaleString(undefined, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
+                          dateStyle: "short",
                         })}
                       </div>
                       <div className="md:col-span-2 flex items-center gap-2">
                         <ScoreBadge score={s.qa_score} />
                       </div>
+                      <div className="md:col-span-2 flex items-center gap-2">
+                        <ScoreBadge score={s.cv_score} />
+                      </div>
+
+
 
                       <div className="md:col-span-1 md:text-right flex md:justify-end items-center gap-3">
                         {s.qa_score !== null && (
@@ -539,15 +564,20 @@ function SubmissionsPage() {
                     </div>
 
                     {open && (
-                      <div className="mt-5 space-y-5 pl-0 md:pl-2 border-l-2 border-accent-purple/30 md:ml-0">
-                        {/* AI Evaluation Report */}
-                        <div className="pl-4">
+                      <div className="mt-5 pl-0 md:pl-2 border-l-2 border-accent-purple/30">
+                        {/* AI Evaluation Report (always visible above the tabs) */}
+                        <div className="pl-4 mb-5">
                           <div className="flex items-center justify-between gap-3 mb-2">
                             <p className="text-xs uppercase tracking-wider text-accent-purple inline-flex items-center gap-1.5">
                               <Sparkles className="h-3 w-3" />
                               AI Evaluation Report
                             </p>
-                            <ScoreBadge score={s.qa_score} />
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] uppercase tracking-wider text-foreground/40">Answers</span>
+                              <ScoreBadge score={s.qa_score} />
+                              <span className="text-[10px] uppercase tracking-wider text-foreground/40 ml-2">CV</span>
+                              <ScoreBadge score={s.cv_score} />
+                            </div>
                           </div>
                           <div className="bg-gradient-to-br from-accent-purple/10 to-background/40 border border-accent-purple/20 rounded-xl p-4">
                             {s.ai_reasoning ? (
@@ -563,60 +593,12 @@ function SubmissionsPage() {
                           </div>
                         </div>
 
-                        {job.questions.map((q, i) => (
-                          <div key={i} className="pl-4">
-                            <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
-                              Q{i + 1}
-                            </p>
-                            <p className="text-sm text-foreground/70 mb-2">{q}</p>
-                            <p className="text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4">
-                              {s.answers[i] || (
-                                <span className="text-foreground/40 italic">
-                                  No answer
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        ))}
-                        {job.require_link && (
-                          <div className="pl-4">
-                            <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
-                              Portfolio
-                            </p>
-                            {s.portfolio_link ? (
-                              <a
-                                href={
-                                  s.portfolio_link.startsWith("http")
-                                    ? s.portfolio_link
-                                    : `https://${s.portfolio_link}`
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-accent-purple hover:underline break-all"
-                              >
-                                {s.portfolio_link}
-                              </a>
-                            ) : (
-                              <span className="text-foreground/40 italic">—</span>
-                            )}
-                          </div>
-                        )}
-                        {job.require_cv && (
-                          <div className="pl-4">
-                            <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
-                              CV / Resume
-                            </p>
-                            {s.cv_file_path ? (
-                              <CvDownloadButton path={s.cv_file_path} />
-                            ) : s.cv_text ? (
-                              <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
-                                {s.cv_text}
-                              </pre>
-                            ) : (
-                              <span className="text-foreground/40 italic">—</span>
-                            )}
-                          </div>
-                        )}
+                        <CandidateDrawerTabs
+                          submission={s}
+                          questions={job.questions}
+                          requireLink={job.require_link}
+                          requireCv={job.require_cv}
+                        />
                       </div>
                     )}
                   </div>
@@ -630,9 +612,172 @@ function SubmissionsPage() {
   );
 }
 
-function CvDownloadButton({ path }: { path: string }) {
+function CandidateDrawerTabs({
+  submission: s,
+  questions,
+  requireLink,
+  requireCv,
+}: {
+  submission: Submission;
+  questions: string[];
+  requireLink: boolean;
+  requireCv: boolean;
+}) {
+  const [tab, setTab] = useState<"answers" | "cv">("answers");
+  const analysis = s.cv_analysis ?? null;
+  const summary = analysis?.cv_summary ?? "";
+  const matches = Array.isArray(analysis?.key_matches) ? analysis!.key_matches! : [];
+  const cvLoading = s.cv_score === null;
+
+  return (
+    <div className="pl-4">
+      {/* Tab bar */}
+      <div className="inline-flex p-1 rounded-full bg-foreground/5 border border-border mb-5">
+        <button
+          onClick={() => setTab("answers")}
+          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            tab === "answers"
+              ? "bg-accent-purple text-white shadow"
+              : "text-foreground/60 hover:text-foreground"
+          }`}
+        >
+          Screening Answers
+        </button>
+        <button
+          onClick={() => setTab("cv")}
+          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            tab === "cv"
+              ? "bg-accent-purple text-white shadow"
+              : "text-foreground/60 hover:text-foreground"
+          }`}
+        >
+          CV Overview
+        </button>
+      </div>
+
+      {tab === "answers" && (
+        <div className="space-y-5">
+          {questions.map((q, i) => (
+            <div key={i}>
+              <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
+                Q{i + 1}
+              </p>
+              <p className="text-sm text-foreground/70 mb-2">{q}</p>
+              <p className="text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4">
+                {s.answers[i] || (
+                  <span className="text-foreground/40 italic">No answer</span>
+                )}
+              </p>
+            </div>
+          ))}
+          {requireLink && (
+            <div>
+              <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
+                Portfolio
+              </p>
+              {s.portfolio_link ? (
+                <a
+                  href={
+                    s.portfolio_link.startsWith("http")
+                      ? s.portfolio_link
+                      : `https://${s.portfolio_link}`
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent-purple hover:underline break-all"
+                >
+                  {s.portfolio_link}
+                </a>
+              ) : (
+                <span className="text-foreground/40 italic">—</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "cv" && (
+        <div className="space-y-5">
+          {/* Professional Profile */}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-accent-purple mb-2">
+              Professional Profile
+            </p>
+            {cvLoading ? (
+              <div className="bg-background/40 border border-border rounded-xl p-4">
+                <p className="text-foreground/50 italic text-sm inline-flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Generating CV summary…
+                </p>
+              </div>
+            ) : summary ? (
+              <blockquote className="relative bg-gradient-to-br from-accent-purple/10 to-background/40 border-l-4 border-accent-purple rounded-r-xl pl-5 pr-4 py-4 text-foreground/90 leading-relaxed text-[15px] italic">
+                {summary}
+              </blockquote>
+            ) : (
+              <p className="text-foreground/40 italic text-sm">No summary generated.</p>
+            )}
+          </div>
+
+          {/* Key Match Highlights */}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-accent-purple mb-2">
+              Key Match Highlights
+            </p>
+            {cvLoading ? (
+              <div className="space-y-2">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-4 w-full max-w-md rounded bg-foreground/5 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : matches.length > 0 ? (
+              <ul className="space-y-2">
+                {matches.map((m, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2.5 text-sm text-foreground/90 leading-relaxed"
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-accent-purple shrink-0 mt-0.5" />
+                    <span>{m}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-foreground/40 italic text-sm">
+                {analysis?.error
+                  ? "AI could not extract highlights for this CV."
+                  : "No highlights available."}
+              </p>
+            )}
+          </div>
+
+          {/* Open CV PDF */}
+          {requireCv && (
+            <div className="pt-2">
+              {s.cv_file_path ? (
+                <OpenCvButton path={s.cv_file_path} />
+              ) : s.cv_text ? (
+                <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
+                  {s.cv_text}
+                </pre>
+              ) : (
+                <span className="text-foreground/40 italic text-sm">
+                  No CV uploaded.
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OpenCvButton({ path }: { path: string }) {
   const [loading, setLoading] = useState(false);
-  const filename = path.split("/").pop() ?? "resume";
   const openCv = async () => {
     setLoading(true);
     const { data, error } = await supabase.storage
@@ -649,15 +794,15 @@ function CvDownloadButton({ path }: { path: string }) {
     <button
       onClick={openCv}
       disabled={loading}
-      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-background/40 border border-border hover:border-accent-purple hover:bg-accent-purple/5 transition-colors text-sm"
+      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent-purple hover:bg-accent-purple/90 text-white text-sm font-semibold shadow-lg shadow-accent-purple/20 transition-colors disabled:opacity-60"
     >
       {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin text-accent-purple" />
+        <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <Download className="h-4 w-4 text-accent-purple" />
+        <FileText className="h-4 w-4" />
       )}
-      <span className="text-foreground truncate max-w-[300px]">{filename}</span>
-      <span className="text-xs text-foreground/50">· Download</span>
+      Open Original CV PDF
+      <ExternalLink className="h-3.5 w-3.5 opacity-80" />
     </button>
   );
 }
