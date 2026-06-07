@@ -352,8 +352,8 @@ export function CreateLinkWizard() {
                 onChange={setReqLink}
               />
               <ToggleRow
-                label="Require Text-CV Upload"
-                description="Candidates copy-paste raw resume text. AI will calculate a separate background keyword match score."
+                label="Require CV Upload"
+                description="Candidates upload a resume file (PDF/Word). AI will calculate a separate background keyword match score."
                 checked={reqCv}
                 onChange={setReqCv}
               />
