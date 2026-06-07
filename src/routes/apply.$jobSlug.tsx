@@ -8,7 +8,11 @@ import {
   Sparkles,
   PartyPopper,
   AlertCircle,
+  UploadCloud,
+  FileText,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { submitApplication } from "@/lib/score-submission.functions";
 
