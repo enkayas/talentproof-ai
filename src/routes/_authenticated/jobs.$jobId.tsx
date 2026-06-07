@@ -281,17 +281,19 @@ function SubmissionsPage() {
 
   const rescore = async (id: string) => {
     setRescoring((prev) => new Set(prev).add(id));
-    // Optimistically clear scores so badges flip to "Evaluating…"
+    // Optimistically clear scores so badges flip to "Evaluating…" and invalidate
+    // the lazy-loaded drawer details so they re-fetch on next expand.
     setSubs((prev) =>
       prev.map((s) =>
         s.id === id
-          ? { ...s, qa_score: null, cv_score: null, cv_analysis: null, ai_reasoning: null }
+          ? { ...s, qa_score: null, cv_score: null, details: undefined }
           : s,
       ),
     );
     try {
       await scoreSubmission({ data: { submissionId: id } });
       await load();
+      if (expanded === id) loadDetails(id);
     } catch {
       toast.error("Re-scoring failed. Please try again.");
       await load();
