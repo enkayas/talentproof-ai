@@ -118,10 +118,12 @@ function SubmissionsPage() {
           .select("id, job_title, questions, require_link, require_cv, status")
           .eq("id", jobId)
           .maybeSingle(),
+        // P7: list query is lightweight — heavy CV/analysis fields are fetched
+        // on demand when a row is expanded.
         supabase
           .from("submissions")
           .select(
-            "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, cv_score, cv_analysis, ai_reasoning, created_at, is_shortlisted",
+            "id, candidate_name, email, whatsapp, linkedin, qa_score, cv_score, created_at, is_shortlisted",
           )
           .eq("job_id", jobId)
           .order("qa_score", { ascending: false, nullsFirst: false })
@@ -146,24 +148,28 @@ function SubmissionsPage() {
         });
       }
 
-      setSubs(
-        (subsData ?? []).map((s) => {
+      // Preserve any already-loaded details across polls.
+      setSubs((prev) => {
+        const detailsById = new Map(prev.map((p) => [p.id, p.details]));
+        return (subsData ?? []).map((s) => {
           const row = s as Record<string, unknown>;
           return {
-            ...s,
-            answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
+            id: s.id,
+            candidate_name: s.candidate_name,
+            email: s.email,
+            whatsapp: s.whatsapp,
+            linkedin: s.linkedin,
             qa_score: s.qa_score === null ? null : Number(s.qa_score),
             cv_score:
               row.cv_score === null || row.cv_score === undefined
                 ? null
                 : Number(row.cv_score),
-            cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
-            ai_reasoning: (row.ai_reasoning as string | null) ?? null,
-            cv_file_path: (row.cv_file_path as string | null) ?? null,
+            created_at: s.created_at,
             is_shortlisted: !!row.is_shortlisted,
+            details: detailsById.get(s.id),
           } as Submission;
-        }),
-      );
+        });
+      });
     } catch (e) {
       setLoadError(
         e instanceof Error
@@ -173,6 +179,59 @@ function SubmissionsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // P7: lazy detail fetch for a single submission row.
+  const loadDetails = async (id: string) => {
+    setSubs((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, detailsLoading: true, detailsError: null } : s)),
+    );
+    try {
+      const { data, error } = await supabase
+        .from("submissions")
+        .select("answers, portfolio_link, cv_text, cv_file_path, cv_analysis, ai_reasoning")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      const row = (data ?? {}) as Record<string, unknown>;
+      const details: SubmissionDetails = {
+        answers: Array.isArray(row.answers) ? (row.answers as string[]) : [],
+        portfolio_link: (row.portfolio_link as string | null) ?? null,
+        cv_text: (row.cv_text as string | null) ?? null,
+        cv_file_path: (row.cv_file_path as string | null) ?? null,
+        cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
+        ai_reasoning: (row.ai_reasoning as string | null) ?? null,
+      };
+      setSubs((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, details, detailsLoading: false } : s,
+        ),
+      );
+    } catch (e) {
+      setSubs((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                detailsLoading: false,
+                detailsError:
+                  e instanceof Error ? e.message : "Could not load details.",
+              }
+            : s,
+        ),
+      );
+    }
+  };
+
+  const handleToggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = prev === id ? null : id;
+      if (next) {
+        const row = subs.find((s) => s.id === id);
+        if (row && !row.details && !row.detailsLoading) loadDetails(id);
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
