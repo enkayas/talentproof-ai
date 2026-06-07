@@ -570,12 +570,16 @@ function Field({
   onChange,
   placeholder,
   type = "text",
+  onBlur,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  onBlur?: () => void;
+  error?: string | null;
 }) {
   return (
     <label className="block">
@@ -584,9 +588,18 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
-        className="w-full bg-transparent border-0 border-b border-border focus:border-accent-purple text-lg sm:text-xl py-3 outline-none transition-colors placeholder:text-foreground/30"
+        aria-invalid={error ? true : undefined}
+        className={`w-full bg-transparent border-0 border-b text-lg sm:text-xl py-3 outline-none transition-colors placeholder:text-foreground/30 ${
+          error
+            ? "border-destructive focus:border-destructive"
+            : "border-border focus:border-accent-purple"
+        }`}
       />
+      {error && (
+        <span className="block text-xs text-destructive mt-1.5">{error}</span>
+      )}
     </label>
   );
 }
