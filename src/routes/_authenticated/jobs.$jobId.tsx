@@ -758,7 +758,8 @@ function CandidateDrawerTabs({
           {requireCv && (
             <div className="pt-2">
               {s.cv_file_path ? (
-                <OpenCvButton path={s.cv_file_path} />
+                <OpenCvButton submissionId={s.id} />
+
               ) : s.cv_text ? (
                 <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
                   {s.cv_text}
@@ -776,19 +777,33 @@ function CandidateDrawerTabs({
   );
 }
 
-function OpenCvButton({ path }: { path: string }) {
+function OpenCvButton({ submissionId }: { submissionId: string }) {
   const [loading, setLoading] = useState(false);
   const openCv = async () => {
     setLoading(true);
-    const { data, error } = await supabase.storage
-      .from("cv-resumes")
-      .createSignedUrl(path, 60 * 10);
-    setLoading(false);
-    if (error || !data?.signedUrl) {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        toast.error("Session expired. Please sign in again.");
+        return;
+      }
+      const res = await fetch(`/api/cv/${submissionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        toast.error("Could not open resume file.");
+        return;
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
       toast.error("Could not open resume file.");
-      return;
+    } finally {
+      setLoading(false);
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
   return (
     <button

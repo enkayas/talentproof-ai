@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApplyJobSlugRouteImport } from './routes/apply.$jobSlug'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as ApiCvSubmissionIdRouteImport } from './routes/api/cv.$submissionId'
 import { Route as AuthenticatedJobsJobIdRouteImport } from './routes/_authenticated/jobs.$jobId'
 
 const LoginRoute = LoginRouteImport.update({
@@ -46,6 +47,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiCvSubmissionIdRoute = ApiCvSubmissionIdRouteImport.update({
+  id: '/api/cv/$submissionId',
+  path: '/api/cv/$submissionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedJobsJobIdRoute = AuthenticatedJobsJobIdRouteImport.update({
   id: '/jobs/$jobId',
   path: '/jobs/$jobId',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/apply/$jobSlug': typeof ApplyJobSlugRoute
   '/jobs/$jobId': typeof AuthenticatedJobsJobIdRoute
+  '/api/cv/$submissionId': typeof ApiCvSubmissionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/apply/$jobSlug': typeof ApplyJobSlugRoute
   '/jobs/$jobId': typeof AuthenticatedJobsJobIdRoute
+  '/api/cv/$submissionId': typeof ApiCvSubmissionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/apply/$jobSlug': typeof ApplyJobSlugRoute
   '/_authenticated/jobs/$jobId': typeof AuthenticatedJobsJobIdRoute
+  '/api/cv/$submissionId': typeof ApiCvSubmissionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/apply/$jobSlug'
     | '/jobs/$jobId'
+    | '/api/cv/$submissionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/apply/$jobSlug'
     | '/jobs/$jobId'
+    | '/api/cv/$submissionId'
   id:
     | '__root__'
     | '/'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/apply/$jobSlug'
     | '/_authenticated/jobs/$jobId'
+    | '/api/cv/$submissionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -112,6 +124,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   LoginRoute: typeof LoginRoute
   ApplyJobSlugRoute: typeof ApplyJobSlugRoute
+  ApiCvSubmissionIdRoute: typeof ApiCvSubmissionIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/cv/$submissionId': {
+      id: '/api/cv/$submissionId'
+      path: '/api/cv/$submissionId'
+      fullPath: '/api/cv/$submissionId'
+      preLoaderRoute: typeof ApiCvSubmissionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/jobs/$jobId': {
       id: '/_authenticated/jobs/$jobId'
       path: '/jobs/$jobId'
@@ -187,7 +207,18 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   LoginRoute: LoginRoute,
   ApplyJobSlugRoute: ApplyJobSlugRoute,
+  ApiCvSubmissionIdRoute: ApiCvSubmissionIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
