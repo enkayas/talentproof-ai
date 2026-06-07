@@ -1,76 +1,85 @@
+# Performance Audit — Findings Only
 
-# Error Handling & Loading State Audit
+Scope: read-only review of routes, components, DB queries, and indexes. No functionality changes are proposed here; this is a prioritized list of issues with suggested remediations for a follow-up pass.
 
-Audit against the 5 criteria. No existing functionality changes — only adding try/catch, inline errors, retry CTAs, and skeletons/spinners where missing.
+## 1. Unnecessary re-renders & wasted work
 
-## Current State
+**H1. `dashboard.tsx` double-fetches jobs on mount.** Two `useEffect`s both call `loadJobs()`: one on mount, one when `active` changes (initial value `"active"` triggers it). Result: dashboard fires the jobs+submissions query twice every time it mounts.
+- Fix: collapse into a single effect, or guard the second with a "was-create" ref.
 
-### ✅ Already in place
-- **404 page for invalid routes** — `NotFoundComponent` in `src/routes/__root.tsx` covers unmatched URLs; `apply.$jobSlug.tsx` and `jobs.$jobId.tsx` show in-page "not found" UIs for missing records.
-- **Root error boundary** — `ErrorComponent` in `__root.tsx` with "Try again" (calls `router.invalidate()` + `reset()`).
-- **Loading spinners (partial)** — `Loader2` is used on dashboard jobs list, Shortlist Hub, submissions page, apply page, auth submit button, CreateLinkWizard step 2 generation, publish, and submission flow.
-- **Form validation (partial)** — Apply flow disables Next/Submit until each step's fields are valid; auth form uses HTML5 `required`/`minLength`.
-- **Some error toasts** — `jobs.$jobId.tsx` toasts on close/shortlist failure; apply flow shows `submitError` inline.
+**H2. `dashboard.tsx` `loadJobs` makes N+1-style aggregation in the client.** Pulls every submission row (`job_id` only) for every job the recruiter owns just to count them. With 100 caps × many jobs this grows linearly per dashboard view.
+- Fix: a Postgres view / RPC returning `(job_id, count)` via `group by`, or a `jobs_with_counts` view used in a single `select`.
 
-### ⚠️ Gaps found
+**H3. `jobs.$jobId.tsx` polling loop re-creates an interval on every `subs` change.** The polling effect depends on `subs`; every poll updates `subs`, which clears + re-arms the interval. Works, but means the interval drifts and `load()` runs more often than intended while data is flowing in.
+- Fix: depend on a derived boolean `hasPending = subs.some(s => s.qa_score === null)` instead of `subs`, or use a ref.
 
-| # | Location | Gap |
-|---|---|---|
-| 1 | `dashboard.tsx` `loadJobs` (lines 74-119) | No try/catch around `supabase.from("jobs")...` / `submissions` queries. Silent failure: spinner stops, list renders empty as if no data. No retry. |
-| 2 | `dashboard.tsx` `ShortlistHub` (lines 521-566) | Same — no try/catch, no error state, no retry. |
-| 3 | `jobs.$jobId.tsx` `load()` (lines 127-177) | No try/catch around the parallel `jobs`/`submissions` fetch. On network failure `loading` stays `true` forever (infinite spinner). No "Retry" CTA. |
-| 4 | `jobs.$jobId.tsx` `rescore()` (line 234) / `exportCsv` | `rescore` has a `try/finally` but no `catch` user message on failure (only clears the rescoring set). `exportCsv` has no try/catch around Blob/URL ops. |
-| 5 | `apply.$jobSlug.tsx` initial job fetch (lines 84-124) | On `error` it shows the generic "Link not found" page — collapses real network errors into a 404. No distinction + no retry. |
-| 6 | `apply.$jobSlug.tsx` identity step | No inline validation messages — invalid email/empty name only disable the button silently. User doesn't know *why*. |
-| 7 | `CreateLinkWizard.tsx` `handleGenerate` (line 51) | `catch` silently swaps in 4 hard-coded fallback questions and never tells the user AI generation failed. |
-| 8 | `CreateLinkWizard.tsx` `handlePublish` | Surfaces `publishError` inline ✅ but no retry button — user must re-click Publish manually (acceptable, but no toast either). |
-| 9 | `auth.tsx` form | Errors shown inline ✅ but no field-level validation (e.g. invalid-email styling) beyond browser default. |
-| 10 | Loading states — skeletons vs spinners | Everywhere uses a centered single `Loader2` spinner. Dashboard job cards and submissions table would benefit from **skeleton rows** matching their final layout (reduces layout shift, feels faster). Optional polish. |
-| 11 | Per-route error/notFound boundaries | Only `__root.tsx` defines them. Per `tanstack-errors-notfound`, **every route with a loader** must define both. None of our routes use loaders yet (they all `useEffect` + fetch), so this is N/A today — but the route files still have no `errorComponent`/`notFoundComponent`. Low priority unless we move to loaders. |
-| 12 | Network failure retry CTA | No fetch in the app currently shows a "Retry" button on failure — refresh is the only recourse. |
+**H4. Stuck-submission auto-retry effect also depends on `subs`.** Same problem as H3 — re-runs the filter on every state change. Cheap today, but couples re-render cost to row count.
+- Fix: same — derive a stable dep, or move the check into the same polling tick.
 
-## Plan (UI-only fixes, no logic changes)
+**H5. No memoization of derived data.**
+- `dashboard.tsx`: `activeJobs`, `pastJobs`, `totalSubs` recomputed on every render.
+- `ShortlistHub`: `grouped` / `groups` recomputed on every render and allocates a new `Map`/object.
+- `jobs.$jobId.tsx`: `exportCsv` rebuilds headers/rows inline; `ScoreBadge` / row components are not memoized — toggling one row's `expanded`/`contactOpen` re-renders the entire submissions list.
+- Fix: `useMemo` for derived collections; `React.memo` for `JobCard`, `ShortlistCandidateCard`, and the submission row component.
 
-### A. Dashboard (`src/routes/_authenticated/dashboard.tsx`)
-1. Wrap `loadJobs` body in `try/catch`. Add `jobsError: string | null` state. On error: stop spinner, render an inline error card with **"Try again"** button that re-invokes `loadJobs()`.
-2. Same treatment for `ShortlistHub` effect — add `error` state + retry button.
-3. Replace the centered spinner in the Active Links / Past Jobs grids with **3 skeleton `JobCard` placeholders** (same `rounded-2xl border p-6` shell with `animate-pulse` blocks). Spinner stays for Shortlist Hub (lower visual weight).
+**H6. `JobCardSkeletonGrid` and skeleton arrays use inline `[0,1,2]` literals.** Negligible, but pair with H5 — memoize skeletons as module-level constants.
 
-### B. Submissions page (`src/routes/_authenticated/jobs.$jobId.tsx`)
-4. Wrap `load()` in `try/catch`. Add `loadError` state. On error: render an error panel with **"Retry"** button (calls `load()`).
-5. Add a `toast.error("Re-scoring failed. Please try again.")` in `rescore()`'s `catch` (currently absent). Keep optimistic UI as-is.
-6. Wrap `exportCsv` Blob creation in `try/catch` with `toast.error("Could not export CSV.")` on failure.
-7. Replace pre-data spinner with a **skeleton table** (header row + 4 skeleton rows matching the existing 6-column grid template — adheres to the unified-grid rule).
+**H7. `Set`-based local state churn.** `contactOpen`, `rescoring` clone a `Set` on every toggle and re-render the whole table. Acceptable today; if list grows, switch to per-row state via memoized row component.
 
-### C. Apply page (`src/routes/apply.$jobSlug.tsx`)
-8. Split fetch error vs missing-record: track `fetchError` separately from `notFound`. On fetch failure render a "Couldn't load this application" card with **"Try again"** button (re-runs the effect via a `reloadKey` state bump).
-9. Add inline field error messages on identity step:
-   - Below Email: `Enter a valid email` when touched & invalid.
-   - Below Name: `Required` when touched & empty.
-   - Below WhatsApp: `Required` when touched & empty.
-   Use `touched` flags per field so messages only appear after blur. Button disabled logic unchanged.
-10. Submit flow already surfaces `submitError` ✅ — add a **"Try again"** button next to it on the proof step that re-runs `handleSubmit()` (currently user must press Submit again, which works but isn't discoverable).
+## 2. Database queries & indexes
 
-### D. Create Link Wizard (`src/components/CreateLinkWizard.tsx`)
-11. In `handleGenerate` `catch`: show a `toast.error("AI couldn't generate questions. Using starter set — edit or add your own.")` so the fallback isn't silent. Keep fallback behavior.
-12. In `handlePublish`: keep inline `publishError` and add a "Try again" button next to it that re-invokes `handlePublish()`.
+**D1. Submissions over-selects on the recruiter detail page.** `jobs.$jobId.tsx` selects `cv_text` and full `cv_analysis` / `ai_reasoning` JSON for the leaderboard render even though those fields are only revealed when a row is expanded.
+- Fix: split into two queries — a lightweight list query (`id, candidate_name, email, qa_score, cv_score, created_at, is_shortlisted, whatsapp, linkedin, portfolio_link`) and a per-row fetch on expand for `cv_text`/`cv_analysis`/`ai_reasoning`. Same data, dramatically less payload.
 
-### E. Auth page (`src/routes/auth.tsx`)
-13. Add inline `aria-invalid` styling + helper text for invalid email format on blur (touched flag). Keep server `error` panel as-is. No logic changes.
+**D2. CSV export uses already-loaded rows.** Once D1 lands, `exportCsv` will need its own full-detail fetch (acceptable — only runs on click). Note this as a coupled change.
 
-### F. Skeletons — shared
-14. Create one new component `src/components/ui/skeleton-row.tsx` (or reuse existing shadcn `Skeleton` if present in `src/components/ui/`) for consistent `animate-pulse` blocks used by dashboard cards + submissions table.
+**D3. `submissions` indexes are minimal.** Only `submissions_pkey` and `submissions_job_id_idx` exist. Recurring queries that would benefit from composite indexes:
+  - leaderboard order: `(job_id, qa_score desc nullsfirst false, created_at desc)`
+  - shortlist hub filter: partial index `where is_shortlisted = true` on `(job_id, qa_score desc)`
+  - stuck-row scan: implicit `created_at` filter — covered by leaderboard composite.
+- Fix: add the two indexes above in a migration.
 
-### Out of scope (explicitly NOT changed)
-- Moving fetches into TanStack loaders / `useQuery`. (Would change architecture — separate task.)
-- Adding per-route `errorComponent` / `notFoundComponent` (only required when loaders exist).
-- Any backend, RLS, or server function change.
-- Visual redesign of existing spinners that are already adequate (auth button, publish button, modal confirm).
+**D4. Anonymous public-read on `jobs` table.** `Anyone can read jobs` policy allows `select *` from anywhere; `select` lists the full row including `questions` JSON. Apply page only needs `id, job_title, job_description, questions, require_link, require_cv, status`. Already minimal in code — flag only as a reminder.
 
-## Files to be edited
-- `src/routes/_authenticated/dashboard.tsx` — try/catch + retry + skeletons (items 1-3)
-- `src/routes/_authenticated/jobs.$jobId.tsx` — try/catch + retry + skeleton table + toasts (items 4-7)
-- `src/routes/apply.$jobSlug.tsx` — fetch error vs 404 split, field-level validation, retry (items 8-10)
-- `src/components/CreateLinkWizard.tsx` — toast on AI fallback, retry button on publish (items 11-12)
-- `src/routes/auth.tsx` — inline email validation hint (item 13)
-- `src/components/ui/skeleton-row.tsx` (new, only if no existing `Skeleton` component)
+**D5. ShortlistHub does a two-step query (`jobs` then `submissions in (...ids)`).** Could be a single join via an RPC or a `submissions` query joined with `jobs!inner(job_title)` filtered server-side by owner via RLS — fewer round trips.
+
+## 3. Images & assets
+
+**I1. No `<img>` tags found** in the app surfaces — current pages use CSS-only visuals. Nothing to lazy-load today. When images are added (e.g., recruiter avatar, candidate photos, marketing hero on `index.tsx`), apply the standard rules: explicit `width`/`height`, `loading="lazy"` for below-the-fold, `decoding="async"`, AVIF/WebP via `vite-imagetools` for bundled assets, LCP preload in route `head().links`.
+
+**I2. `lucide-react` icon imports are fine** (tree-shaken), but `dashboard.tsx` and `jobs.$jobId.tsx` each import ~20 icons in one barrel — keep as-is; flagged only so future additions stay deliberate.
+
+## 4. Duplicate code / consolidation opportunities
+
+**C1. `ScoreBadge` (jobs.$jobId.tsx) and `ScorePill` (dashboard.tsx) are near-identical.** Same threshold logic (80 / 50), same tone palette, slight visual differences.
+- Fix: one shared `src/components/ScoreBadge.tsx` with `variant="pill" | "badge"` and `size` props.
+
+**C2. `LoadErrorPanel` is defined inline in `dashboard.tsx`.** `jobs.$jobId.tsx` and `apply.$jobSlug.tsx` each ship their own error panel JSX with the same shape (icon + title + message + retry button).
+- Fix: promote to `src/components/LoadErrorPanel.tsx` and reuse.
+
+**C3. Skeleton blocks duplicated.** `JobCardSkeletonGrid` (dashboard) and `SubmissionsSkeleton` (jobs page) follow the same pattern. Acceptable as-is, but a shared `SkeletonGrid` primitive would cut ~60 lines.
+
+**C4. Score color tone logic duplicated in three places** (`ScoreBadge`, `ScorePill`, and an inline span in jobs page if any). Extract to `getScoreTone(score)` util.
+
+**C5. Auth/user-id fetch pattern repeated.** `dashboard.tsx` and `ShortlistHub` both call `supabase.auth.getUser()` and branch on missing uid. A small `useCurrentUser()` hook (or move loads into server functions that already enforce auth) would remove the duplication and avoid one extra round trip per mount.
+
+**C6. CSV escaping helper inline in `exportCsv`.** Single-use today; flag only if exports expand.
+
+## 5. Misc / smaller wins
+
+**M1. `today` string in `dashboard.tsx`** is recomputed on every render with `toLocaleDateString`. Move into `useMemo(() => …, [])`.
+
+**M2. `font-serif` + custom radial gradient on dashboard** are fine; no perf concern. Listed for completeness.
+
+**M3. `useEffect` cleanup in `jobs.$jobId.tsx`** uses a `cancelled` flag but `load()` writes through `setState` unconditionally — flag, not a perf issue but a latent stale-update path.
+
+## Suggested priority order for a follow-up fix pass
+
+1. H1 (double fetch) — quick win, halves dashboard query load.
+2. D1 + D3 (split submissions select, add composite indexes) — biggest payoff for recruiters with many candidates.
+3. H2 (server-side job counts via view/RPC) — removes the per-dashboard linear submissions scan.
+4. C1 + C2 (shared `ScoreBadge`, `LoadErrorPanel`) — cleanup, enables consistent future changes.
+5. H3 + H4 + H5 (memoization, stable polling deps) — polish.
+6. D5, C5 — when touching auth/data layer next.
+
+No code is changed in this audit; each item above is a separate, optional follow-up.
