@@ -21,6 +21,8 @@ import {
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadErrorPanel } from "@/components/LoadErrorPanel";
+import { ScoreBadge } from "@/components/ScoreBadge";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -65,7 +67,8 @@ function DashboardPage() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
-  const [email, setEmail] = useState<string>("");
+  const { user } = useCurrentUser();
+  const email = user?.email ?? "";
 
   const today = useMemo(
     () =>
@@ -78,49 +81,20 @@ function DashboardPage() {
     [],
   );
 
+  // P8: single RPC call returns jobs + submission counts (server-side aggregation).
   const loadJobs = async () => {
     setLoadingJobs(true);
     setJobsError(null);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      setEmail(userData.user?.email ?? "");
-      if (!uid) {
-        setJobs([]);
-        return;
-      }
-      const { data: jobsData, error: jobsErr } = await supabase
-        .from("jobs")
-        .select("id, job_title, created_at, status")
-        .eq("owner_id", uid)
-        .order("created_at", { ascending: false });
-      if (jobsErr) throw jobsErr;
-
-      if (!jobsData) {
-        setJobs([]);
-        return;
-      }
-
-      // Count submissions per job
-      const ids = jobsData.map((j) => j.id);
-      let counts: Record<string, number> = {};
-      if (ids.length > 0) {
-        const { data: subs, error: subsErr } = await supabase
-          .from("submissions")
-          .select("job_id")
-          .in("job_id", ids);
-        if (subsErr) throw subsErr;
-        counts = (subs ?? []).reduce<Record<string, number>>((acc, s) => {
-          acc[s.job_id] = (acc[s.job_id] ?? 0) + 1;
-          return acc;
-        }, {});
-      }
-
+      const { data, error } = await supabase.rpc("jobs_with_counts");
+      if (error) throw error;
       setJobs(
-        jobsData.map((j) => ({
-          ...j,
-          submission_count: counts[j.id] ?? 0,
-          status: (j as { status?: string }).status ?? "live",
+        (data ?? []).map((j) => ({
+          id: j.id,
+          job_title: j.job_title,
+          created_at: j.created_at,
+          status: j.status ?? "live",
+          submission_count: Number(j.submission_count ?? 0),
         })),
       );
     } catch (e) {
@@ -544,46 +518,31 @@ function ShortlistHub() {
       setLoading(true);
       setError(null);
       try {
-        const { data: userData } = await supabase.auth.getUser();
-        const uid = userData.user?.id;
-        if (!uid) {
-          if (!cancelled) setRows([]);
-          return;
-        }
-        const { data: jobsData, error: jobsErr } = await supabase
-          .from("jobs")
-          .select("id, job_title")
-          .eq("owner_id", uid);
-        if (jobsErr) throw jobsErr;
-        const jobs = jobsData ?? [];
-        const jobMap = new Map(jobs.map((j) => [j.id, j.job_title]));
-        const ids = jobs.map((j) => j.id);
-        if (ids.length === 0) {
-          if (!cancelled) setRows([]);
-          return;
-        }
+        // P10: single join via RLS — recruiter only sees their own jobs' submissions.
         const { data: subs, error: subsErr } = await supabase
           .from("submissions")
           .select(
-            "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, is_shortlisted",
+            "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, jobs!inner(job_title)",
           )
-          .in("job_id", ids)
           .eq("is_shortlisted", true)
           .order("qa_score", { ascending: false, nullsFirst: false });
         if (subsErr) throw subsErr;
         if (cancelled) return;
         setRows(
-          (subs ?? []).map((s) => ({
-            id: s.id,
-            candidate_name: s.candidate_name,
-            email: s.email,
-            whatsapp: s.whatsapp,
-            linkedin: s.linkedin,
-            qa_score: s.qa_score === null ? null : Number(s.qa_score),
-            created_at: s.created_at,
-            job_id: s.job_id,
-            job_title: jobMap.get(s.job_id) ?? "Untitled role",
-          })),
+          (subs ?? []).map((s) => {
+            const joined = (s as { jobs?: { job_title?: string } | null }).jobs;
+            return {
+              id: s.id,
+              candidate_name: s.candidate_name,
+              email: s.email,
+              whatsapp: s.whatsapp,
+              linkedin: s.linkedin,
+              qa_score: s.qa_score === null ? null : Number(s.qa_score),
+              created_at: s.created_at,
+              job_id: s.job_id,
+              job_title: joined?.job_title ?? "Untitled role",
+            };
+          }),
         );
       } catch (e) {
         if (!cancelled) {
@@ -689,29 +648,6 @@ function ShortlistHub() {
   );
 }
 
-function ScorePill({ score }: { score: number | null }) {
-  if (score === null) {
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-slate-800/60 text-slate-300 border border-slate-700/60">
-        Pending
-      </span>
-    );
-  }
-  const s = Math.round(score);
-  const tone =
-    s >= 80
-      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800/50"
-      : s >= 50
-      ? "bg-amber-950/40 text-amber-400 border-amber-800/50"
-      : "bg-rose-950/40 text-rose-400 border-rose-800/50";
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums border ${tone}`}
-    >
-      {s}/100
-    </span>
-  );
-}
 
 function ShortlistCandidateCard({ c }: { c: ShortlistRow }) {
   const waDigits = (c.whatsapp ?? "").replace(/[^\d]/g, "");
@@ -725,7 +661,7 @@ function ShortlistCandidateCard({ c }: { c: ShortlistRow }) {
           </div>
           <div className="text-xs text-muted-foreground truncate">{c.email}</div>
         </div>
-        <ScorePill score={c.qa_score} />
+        <ScoreBadge score={c.qa_score} variant="pill" />
       </div>
 
       <div className="flex items-center gap-2 mt-1">

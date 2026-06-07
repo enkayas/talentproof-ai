@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
 import { closeJob as closeJobFn, toggleShortlist as toggleShortlistFn } from "@/lib/jobs.functions";
+import { ScoreBadge } from "@/components/ScoreBadge";
 
 
 export const Route = createFileRoute("/_authenticated/jobs/$jobId")({
@@ -48,51 +49,32 @@ type CvAnalysis = {
   error?: string;
 };
 
+// P7: heavy fields (cv_text, cv_analysis, ai_reasoning) are loaded lazily when
+// a row is expanded. The list query stays lightweight and the 6s poll only
+// re-downloads scoreboard data.
+type SubmissionDetails = {
+  cv_text: string | null;
+  cv_file_path: string | null;
+  cv_analysis: CvAnalysis | null;
+  ai_reasoning: string | null;
+  answers: string[];
+  portfolio_link: string | null;
+};
+
 type Submission = {
   id: string;
   candidate_name: string;
   email: string;
   whatsapp: string | null;
   linkedin: string | null;
-  answers: string[];
-  portfolio_link: string | null;
-  cv_text: string | null;
-  cv_file_path: string | null;
   qa_score: number | null;
   cv_score: number | null;
-  cv_analysis: CvAnalysis | null;
-  ai_reasoning: string | null;
   created_at: string;
   is_shortlisted: boolean;
+  details?: SubmissionDetails;
+  detailsLoading?: boolean;
+  detailsError?: string | null;
 };
-
-function ScoreBadge({ score, size = "sm" }: { score: number | null; size?: "sm" | "md" }) {
-  const px = size === "md" ? "px-3 py-1.5 text-sm" : "px-2.5 py-1 text-xs";
-  if (score === null || score === undefined) {
-    return (
-      <span
-        className={`inline-flex items-center gap-1.5 rounded-full ${px} font-medium bg-slate-800/60 text-slate-300 border border-slate-700/60 animate-pulse`}
-      >
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Evaluating…
-      </span>
-    );
-  }
-  const s = Math.round(score);
-  const tone =
-    s >= 80
-      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800/50"
-      : s >= 50
-      ? "bg-amber-950/40 text-amber-400 border-amber-800/50"
-      : "bg-rose-950/40 text-rose-400 border-rose-800/50";
-  return (
-    <span
-      className={`inline-flex items-center rounded-full ${px} font-medium tabular-nums border ${tone}`}
-    >
-      {s}/100
-    </span>
-  );
-}
 
 function SubmissionsPage() {
   const { jobId } = useParams({ from: "/_authenticated/jobs/$jobId" });
@@ -136,10 +118,12 @@ function SubmissionsPage() {
           .select("id, job_title, questions, require_link, require_cv, status")
           .eq("id", jobId)
           .maybeSingle(),
+        // P7: list query is lightweight — heavy CV/analysis fields are fetched
+        // on demand when a row is expanded.
         supabase
           .from("submissions")
           .select(
-            "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, cv_score, cv_analysis, ai_reasoning, created_at, is_shortlisted",
+            "id, candidate_name, email, whatsapp, linkedin, qa_score, cv_score, created_at, is_shortlisted",
           )
           .eq("job_id", jobId)
           .order("qa_score", { ascending: false, nullsFirst: false })
@@ -164,24 +148,28 @@ function SubmissionsPage() {
         });
       }
 
-      setSubs(
-        (subsData ?? []).map((s) => {
+      // Preserve any already-loaded details across polls.
+      setSubs((prev) => {
+        const detailsById = new Map(prev.map((p) => [p.id, p.details]));
+        return (subsData ?? []).map((s) => {
           const row = s as Record<string, unknown>;
           return {
-            ...s,
-            answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
+            id: s.id,
+            candidate_name: s.candidate_name,
+            email: s.email,
+            whatsapp: s.whatsapp,
+            linkedin: s.linkedin,
             qa_score: s.qa_score === null ? null : Number(s.qa_score),
             cv_score:
               row.cv_score === null || row.cv_score === undefined
                 ? null
                 : Number(row.cv_score),
-            cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
-            ai_reasoning: (row.ai_reasoning as string | null) ?? null,
-            cv_file_path: (row.cv_file_path as string | null) ?? null,
+            created_at: s.created_at,
             is_shortlisted: !!row.is_shortlisted,
+            details: detailsById.get(s.id),
           } as Submission;
-        }),
-      );
+        });
+      });
     } catch (e) {
       setLoadError(
         e instanceof Error
@@ -191,6 +179,59 @@ function SubmissionsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // P7: lazy detail fetch for a single submission row.
+  const loadDetails = async (id: string) => {
+    setSubs((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, detailsLoading: true, detailsError: null } : s)),
+    );
+    try {
+      const { data, error } = await supabase
+        .from("submissions")
+        .select("answers, portfolio_link, cv_text, cv_file_path, cv_analysis, ai_reasoning")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      const row = (data ?? {}) as Record<string, unknown>;
+      const details: SubmissionDetails = {
+        answers: Array.isArray(row.answers) ? (row.answers as string[]) : [],
+        portfolio_link: (row.portfolio_link as string | null) ?? null,
+        cv_text: (row.cv_text as string | null) ?? null,
+        cv_file_path: (row.cv_file_path as string | null) ?? null,
+        cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
+        ai_reasoning: (row.ai_reasoning as string | null) ?? null,
+      };
+      setSubs((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, details, detailsLoading: false } : s,
+        ),
+      );
+    } catch (e) {
+      setSubs((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                detailsLoading: false,
+                detailsError:
+                  e instanceof Error ? e.message : "Could not load details.",
+              }
+            : s,
+        ),
+      );
+    }
+  };
+
+  const handleToggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = prev === id ? null : id;
+      if (next) {
+        const row = subs.find((s) => s.id === id);
+        if (row && !row.details && !row.detailsLoading) loadDetails(id);
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -240,17 +281,19 @@ function SubmissionsPage() {
 
   const rescore = async (id: string) => {
     setRescoring((prev) => new Set(prev).add(id));
-    // Optimistically clear scores so badges flip to "Evaluating…"
+    // Optimistically clear scores so badges flip to "Evaluating…" and invalidate
+    // the lazy-loaded drawer details so they re-fetch on next expand.
     setSubs((prev) =>
       prev.map((s) =>
         s.id === id
-          ? { ...s, qa_score: null, cv_score: null, cv_analysis: null, ai_reasoning: null }
+          ? { ...s, qa_score: null, cv_score: null, details: undefined }
           : s,
       ),
     );
     try {
       await scoreSubmission({ data: { submissionId: id } });
       await load();
+      if (expanded === id) loadDetails(id);
     } catch {
       toast.error("Re-scoring failed. Please try again.");
       await load();
@@ -276,9 +319,21 @@ function SubmissionsPage() {
   };
 
 
-  const exportCsv = () => {
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
     if (!job) return;
+    setExporting(true);
     try {
+      // P7 coupling: fetch full payload on click rather than keeping it in memory.
+      const { data, error } = await supabase
+        .from("submissions")
+        .select(
+          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, ai_reasoning, qa_score, created_at",
+        )
+        .eq("job_id", job.id)
+        .order("qa_score", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
       const headers = [
         "Submitted At",
         "Score",
@@ -291,18 +346,21 @@ function SubmissionsPage() {
         ...(job.require_cv ? ["CV Text"] : []),
         "AI Reasoning",
       ];
-      const rows = subs.map((s) => [
-        new Date(s.created_at).toISOString(),
-        s.qa_score === null ? "" : String(Math.round(s.qa_score)),
-        s.candidate_name,
-        s.email,
-        s.whatsapp ?? "",
-        s.linkedin ?? "",
-        ...job.questions.map((_, i) => s.answers[i] ?? ""),
-        ...(job.require_link ? [s.portfolio_link ?? ""] : []),
-        ...(job.require_cv ? [s.cv_text ?? ""] : []),
-        s.ai_reasoning ?? "",
-      ]);
+      const rows = (data ?? []).map((s) => {
+        const answers = Array.isArray(s.answers) ? (s.answers as string[]) : [];
+        return [
+          new Date(s.created_at).toISOString(),
+          s.qa_score === null ? "" : String(Math.round(Number(s.qa_score))),
+          s.candidate_name,
+          s.email,
+          s.whatsapp ?? "",
+          s.linkedin ?? "",
+          ...job.questions.map((_, i) => answers[i] ?? ""),
+          ...(job.require_link ? [s.portfolio_link ?? ""] : []),
+          ...(job.require_cv ? [s.cv_text ?? ""] : []),
+          s.ai_reasoning ?? "",
+        ];
+      });
       const csv = [headers, ...rows]
         .map((row) =>
           row
@@ -322,6 +380,8 @@ function SubmissionsPage() {
       URL.revokeObjectURL(url);
     } catch {
       toast.error("Could not export CSV. Please try again.");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -421,9 +481,14 @@ function SubmissionsPage() {
             {subs.length > 0 && (
               <button
                 onClick={exportCsv}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-border text-foreground hover:bg-card text-sm font-medium transition-colors"
+                disabled={exporting}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-border text-foreground hover:bg-card text-sm font-medium transition-colors disabled:opacity-60"
               >
-                <Download className="h-4 w-4" />
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
                 Export CSV
               </button>
             )}
@@ -630,7 +695,7 @@ function SubmissionsPage() {
                           />
                         </button>
                         <button
-                          onClick={() => setExpanded(open ? null : s.id)}
+                          onClick={() => handleToggleExpand(s.id)}
                           className="text-xs font-medium text-accent-purple hover:underline whitespace-nowrap"
                         >
                           {open ? "Hide" : "View"} answers
@@ -655,14 +720,16 @@ function SubmissionsPage() {
                             </div>
                           </div>
                           <div className="bg-gradient-to-br from-accent-purple/10 to-background/40 border border-accent-purple/20 rounded-xl p-4">
-                            {s.ai_reasoning ? (
+                            {s.details?.ai_reasoning ? (
                               <p className="text-foreground/85 whitespace-pre-wrap leading-relaxed text-sm">
-                                {s.ai_reasoning}
+                                {s.details.ai_reasoning}
                               </p>
                             ) : (
                               <p className="text-foreground/50 italic text-sm inline-flex items-center gap-2">
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                Evaluation in progress…
+                                {s.detailsLoading
+                                  ? "Loading evaluation…"
+                                  : "Evaluation in progress…"}
                               </p>
                             )}
                           </div>
@@ -699,10 +766,18 @@ function CandidateDrawerTabs({
   requireCv: boolean;
 }) {
   const [tab, setTab] = useState<"answers" | "cv">("answers");
-  const analysis = s.cv_analysis ?? null;
+  const details = s.details;
+  const detailsLoading = s.detailsLoading || !details;
+  const answers = details?.answers ?? [];
+  const portfolioLink = details?.portfolio_link ?? null;
+  const cvText = details?.cv_text ?? null;
+  const cvFilePath = details?.cv_file_path ?? null;
+  const analysis = details?.cv_analysis ?? null;
   const summary = analysis?.cv_summary ?? "";
-  const matches = Array.isArray(analysis?.key_matches) ? analysis!.key_matches! : [];
-  const cvLoading = s.cv_score === null;
+  const matches: string[] = Array.isArray(analysis?.key_matches)
+    ? (analysis!.key_matches as string[])
+    : [];
+  const cvLoading = detailsLoading || s.cv_score === null;
 
   return (
     <div className="pl-4">
@@ -730,6 +805,10 @@ function CandidateDrawerTabs({
         </button>
       </div>
 
+      {s.detailsError && (
+        <p className="text-sm text-destructive mb-4">{s.detailsError}</p>
+      )}
+
       {tab === "answers" && (
         <div className="space-y-5">
           {questions.map((q, i) => (
@@ -739,8 +818,15 @@ function CandidateDrawerTabs({
               </p>
               <p className="text-sm text-foreground/70 mb-2">{q}</p>
               <p className="text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4">
-                {s.answers[i] || (
-                  <span className="text-foreground/40 italic">No answer</span>
+                {detailsLoading ? (
+                  <span className="text-foreground/40 italic inline-flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading…
+                  </span>
+                ) : (
+                  answers[i] || (
+                    <span className="text-foreground/40 italic">No answer</span>
+                  )
                 )}
               </p>
             </div>
@@ -750,18 +836,18 @@ function CandidateDrawerTabs({
               <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
                 Portfolio
               </p>
-              {s.portfolio_link ? (
+              {portfolioLink ? (
                 <a
                   href={
-                    s.portfolio_link.startsWith("http")
-                      ? s.portfolio_link
-                      : `https://${s.portfolio_link}`
+                    portfolioLink.startsWith("http")
+                      ? portfolioLink
+                      : `https://${portfolioLink}`
                   }
                   target="_blank"
                   rel="noreferrer"
                   className="text-accent-purple hover:underline break-all"
                 >
-                  {s.portfolio_link}
+                  {portfolioLink}
                 </a>
               ) : (
                 <span className="text-foreground/40 italic">—</span>
@@ -810,7 +896,7 @@ function CandidateDrawerTabs({
               </div>
             ) : matches.length > 0 ? (
               <ul className="space-y-2">
-                {matches.map((m, i) => (
+                {matches.map((m: string, i: number) => (
                   <li
                     key={i}
                     className="flex items-start gap-2.5 text-sm text-foreground/90 leading-relaxed"
@@ -832,12 +918,13 @@ function CandidateDrawerTabs({
           {/* Open CV PDF */}
           {requireCv && (
             <div className="pt-2">
-              {s.cv_file_path ? (
+              {detailsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-foreground/40" />
+              ) : cvFilePath ? (
                 <OpenCvButton submissionId={s.id} />
-
-              ) : s.cv_text ? (
+              ) : cvText ? (
                 <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
-                  {s.cv_text}
+                  {cvText}
                 </pre>
               ) : (
                 <span className="text-foreground/40 italic text-sm">
