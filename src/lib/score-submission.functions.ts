@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const Input = z.object({ submissionId: z.string().uuid() });
 
@@ -307,13 +308,47 @@ CRITICAL: Do not include any negative feedback, weaknesses, or missing-gap array
 
 
 export const scoreSubmission = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => Input.parse(d))
-  .handler(async ({ data }) => runScoring(data.submissionId));
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Verify the authenticated user owns the job this submission belongs to.
+    const { data: sub } = await supabaseAdmin
+      .from("submissions")
+      .select("id, job_id")
+      .eq("id", data.submissionId)
+      .maybeSingle();
+    if (!sub) return { ok: false as const, reason: "submission-not-found" };
+    const { data: job } = await supabaseAdmin
+      .from("jobs")
+      .select("owner_id")
+      .eq("id", sub.job_id)
+      .maybeSingle();
+    if (!job || job.owner_id !== context.userId) {
+      return { ok: false as const, reason: "forbidden" };
+    }
+    return runScoring(data.submissionId);
+  });
 
 export const submitApplication = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => SubmitInput.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Server-side enforcement of business rules (browser checks are cosmetic).
+    const { data: job } = await supabaseAdmin
+      .from("jobs")
+      .select("id, status")
+      .eq("id", data.jobId)
+      .maybeSingle();
+    if (!job) return { ok: false as const, reason: "job-not-found" };
+    if (job.status !== "live") return { ok: false as const, reason: "job-not-live" };
+
+    const { count } = await supabaseAdmin
+      .from("submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", data.jobId);
+    if ((count ?? 0) >= 100) return { ok: false as const, reason: "job-full" };
 
     const { data: inserted, error } = await supabaseAdmin
       .from("submissions")
