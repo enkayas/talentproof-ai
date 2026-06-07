@@ -317,9 +317,21 @@ function SubmissionsPage() {
   };
 
 
-  const exportCsv = () => {
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
     if (!job) return;
+    setExporting(true);
     try {
+      // P7 coupling: fetch full payload on click rather than keeping it in memory.
+      const { data, error } = await supabase
+        .from("submissions")
+        .select(
+          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, ai_reasoning, qa_score, created_at",
+        )
+        .eq("job_id", job.id)
+        .order("qa_score", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
       const headers = [
         "Submitted At",
         "Score",
@@ -332,18 +344,21 @@ function SubmissionsPage() {
         ...(job.require_cv ? ["CV Text"] : []),
         "AI Reasoning",
       ];
-      const rows = subs.map((s) => [
-        new Date(s.created_at).toISOString(),
-        s.qa_score === null ? "" : String(Math.round(s.qa_score)),
-        s.candidate_name,
-        s.email,
-        s.whatsapp ?? "",
-        s.linkedin ?? "",
-        ...job.questions.map((_, i) => s.answers[i] ?? ""),
-        ...(job.require_link ? [s.portfolio_link ?? ""] : []),
-        ...(job.require_cv ? [s.cv_text ?? ""] : []),
-        s.ai_reasoning ?? "",
-      ]);
+      const rows = (data ?? []).map((s) => {
+        const answers = Array.isArray(s.answers) ? (s.answers as string[]) : [];
+        return [
+          new Date(s.created_at).toISOString(),
+          s.qa_score === null ? "" : String(Math.round(Number(s.qa_score))),
+          s.candidate_name,
+          s.email,
+          s.whatsapp ?? "",
+          s.linkedin ?? "",
+          ...job.questions.map((_, i) => answers[i] ?? ""),
+          ...(job.require_link ? [s.portfolio_link ?? ""] : []),
+          ...(job.require_cv ? [s.cv_text ?? ""] : []),
+          s.ai_reasoning ?? "",
+        ];
+      });
       const csv = [headers, ...rows]
         .map((row) =>
           row
@@ -363,6 +378,8 @@ function SubmissionsPage() {
       URL.revokeObjectURL(url);
     } catch {
       toast.error("Could not export CSV. Please try again.");
+    } finally {
+      setExporting(false);
     }
   };
 
