@@ -604,11 +604,17 @@ function SubmissionsPage() {
                         {job.require_cv && (
                           <div className="pl-4">
                             <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
-                              CV
+                              CV / Resume
                             </p>
-                            <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
-                              {s.cv_text || "—"}
-                            </pre>
+                            {s.cv_file_path ? (
+                              <CvDownloadButton path={s.cv_file_path} />
+                            ) : s.cv_text ? (
+                              <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
+                                {s.cv_text}
+                              </pre>
+                            ) : (
+                              <span className="text-foreground/40 italic">—</span>
+                            )}
                           </div>
                         )}
                       </div>
