@@ -518,46 +518,31 @@ function ShortlistHub() {
       setLoading(true);
       setError(null);
       try {
-        const { data: userData } = await supabase.auth.getUser();
-        const uid = userData.user?.id;
-        if (!uid) {
-          if (!cancelled) setRows([]);
-          return;
-        }
-        const { data: jobsData, error: jobsErr } = await supabase
-          .from("jobs")
-          .select("id, job_title")
-          .eq("owner_id", uid);
-        if (jobsErr) throw jobsErr;
-        const jobs = jobsData ?? [];
-        const jobMap = new Map(jobs.map((j) => [j.id, j.job_title]));
-        const ids = jobs.map((j) => j.id);
-        if (ids.length === 0) {
-          if (!cancelled) setRows([]);
-          return;
-        }
+        // P10: single join via RLS — recruiter only sees their own jobs' submissions.
         const { data: subs, error: subsErr } = await supabase
           .from("submissions")
           .select(
-            "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, is_shortlisted",
+            "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, jobs!inner(job_title)",
           )
-          .in("job_id", ids)
           .eq("is_shortlisted", true)
           .order("qa_score", { ascending: false, nullsFirst: false });
         if (subsErr) throw subsErr;
         if (cancelled) return;
         setRows(
-          (subs ?? []).map((s) => ({
-            id: s.id,
-            candidate_name: s.candidate_name,
-            email: s.email,
-            whatsapp: s.whatsapp,
-            linkedin: s.linkedin,
-            qa_score: s.qa_score === null ? null : Number(s.qa_score),
-            created_at: s.created_at,
-            job_id: s.job_id,
-            job_title: jobMap.get(s.job_id) ?? "Untitled role",
-          })),
+          (subs ?? []).map((s) => {
+            const joined = (s as { jobs?: { job_title?: string } | null }).jobs;
+            return {
+              id: s.id,
+              candidate_name: s.candidate_name,
+              email: s.email,
+              whatsapp: s.whatsapp,
+              linkedin: s.linkedin,
+              qa_score: s.qa_score === null ? null : Number(s.qa_score),
+              created_at: s.created_at,
+              job_id: s.job_id,
+              job_title: joined?.job_title ?? "Untitled role",
+            };
+          }),
         );
       } catch (e) {
         if (!cancelled) {
