@@ -602,15 +602,18 @@ function ShortlistHub() {
     };
   }, [reloadKey]);
 
-  const grouped = rows.reduce<Record<string, { jobId: string; title: string; items: ShortlistRow[] }>>(
-    (acc, r) => {
-      if (!acc[r.job_id]) acc[r.job_id] = { jobId: r.job_id, title: r.job_title, items: [] };
+  // P4: memoize grouping
+  const groups = useMemo(() => {
+    const grouped = rows.reduce<
+      Record<string, { jobId: string; title: string; items: ShortlistRow[] }>
+    >((acc, r) => {
+      if (!acc[r.job_id])
+        acc[r.job_id] = { jobId: r.job_id, title: r.job_title, items: [] };
       acc[r.job_id].items.push(r);
       return acc;
-    },
-    {},
-  );
-  const groups = Object.values(grouped);
+    }, {});
+    return Object.values(grouped);
+  }, [rows]);
 
   return (
     <>
@@ -779,33 +782,6 @@ function JobCardSkeletonGrid() {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function LoadErrorPanel({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="bg-card border border-destructive/30 rounded-2xl p-8 text-center">
-      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 mb-3">
-        <AlertCircle className="h-5 w-5 text-destructive" />
-      </div>
-      <p className="text-foreground font-medium mb-1">Couldn't load this data</p>
-      <p className="text-sm text-muted-foreground mb-5 max-w-md mx-auto break-words">
-        {message}
-      </p>
-      <button
-        onClick={onRetry}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
-      >
-        <RefreshCw className="h-4 w-4" />
-        Try again
-      </button>
     </div>
   );
 }
