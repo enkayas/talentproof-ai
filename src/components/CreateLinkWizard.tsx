@@ -9,9 +9,11 @@ import {
   Link2,
   Loader2,
   Plus,
+  RefreshCw,
   Sparkles,
   PartyPopper,
 } from "lucide-react";
+import { toast } from "sonner";
 import { generateQuestions } from "@/lib/generate-questions.functions";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -56,6 +58,9 @@ export function CreateLinkWizard() {
       const result = await generate({ data: { jobTitle: title, jobDescription: desc } });
       setQuestions(result.questions);
     } catch {
+      toast.error(
+        "AI couldn't generate questions. Using a starter set — edit or add your own.",
+      );
       setQuestions([
         "Describe a recent project where you adapted to last-minute changes.",
         "Walk us through how you'd respond to a frustrated customer.",
@@ -360,7 +365,18 @@ export function CreateLinkWizard() {
             </div>
 
             {publishError && (
-              <p className="text-sm text-red-400 mb-3">{publishError}</p>
+              <div className="mb-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                <p className="text-sm text-destructive flex-1">{publishError}</p>
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={publishing}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border text-sm font-medium hover:bg-foreground/5 transition-colors disabled:opacity-50 self-start sm:self-auto"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Try again
+                </button>
+              </div>
             )}
 
             <div className="flex items-center justify-between pt-4 border-t border-border">

@@ -17,8 +17,11 @@ import {
   MessageCircle,
   Mail,
   Inbox,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -62,6 +65,7 @@ function DashboardPage() {
   const [active, setActive] = useState<NavKey>("active");
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
   const [email, setEmail] = useState<string>("");
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -73,49 +77,56 @@ function DashboardPage() {
 
   const loadJobs = async () => {
     setLoadingJobs(true);
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData.user?.id;
-    setEmail(userData.user?.email ?? "");
-    if (!uid) {
-      setJobs([]);
+    setJobsError(null);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      setEmail(userData.user?.email ?? "");
+      if (!uid) {
+        setJobs([]);
+        return;
+      }
+      const { data: jobsData, error: jobsErr } = await supabase
+        .from("jobs")
+        .select("id, job_title, created_at, status")
+        .eq("owner_id", uid)
+        .order("created_at", { ascending: false });
+      if (jobsErr) throw jobsErr;
+
+      if (!jobsData) {
+        setJobs([]);
+        return;
+      }
+
+      // Count submissions per job
+      const ids = jobsData.map((j) => j.id);
+      let counts: Record<string, number> = {};
+      if (ids.length > 0) {
+        const { data: subs, error: subsErr } = await supabase
+          .from("submissions")
+          .select("job_id")
+          .in("job_id", ids);
+        if (subsErr) throw subsErr;
+        counts = (subs ?? []).reduce<Record<string, number>>((acc, s) => {
+          acc[s.job_id] = (acc[s.job_id] ?? 0) + 1;
+          return acc;
+        }, {});
+      }
+
+      setJobs(
+        jobsData.map((j) => ({
+          ...j,
+          submission_count: counts[j.id] ?? 0,
+          status: (j as { status?: string }).status ?? "live",
+        })),
+      );
+    } catch (e) {
+      setJobsError(
+        e instanceof Error ? e.message : "Could not load your jobs. Please try again.",
+      );
+    } finally {
       setLoadingJobs(false);
-      return;
     }
-    const { data: jobsData } = await supabase
-      .from("jobs")
-      .select("id, job_title, created_at, status")
-      .eq("owner_id", uid)
-      .order("created_at", { ascending: false });
-
-    if (!jobsData) {
-      setJobs([]);
-      setLoadingJobs(false);
-      return;
-    }
-
-    // Count submissions per job
-    const ids = jobsData.map((j) => j.id);
-    let counts: Record<string, number> = {};
-    if (ids.length > 0) {
-      const { data: subs } = await supabase
-        .from("submissions")
-        .select("job_id")
-        .in("job_id", ids);
-      counts = (subs ?? []).reduce<Record<string, number>>((acc, s) => {
-        acc[s.job_id] = (acc[s.job_id] ?? 0) + 1;
-        return acc;
-      }, {});
-    }
-
-    setJobs(
-      jobsData.map((j) => ({
-        ...j,
-        submission_count: counts[j.id] ?? 0,
-        status: (j as { status?: string }).status ?? "live",
-      })),
-    );
-
-    setLoadingJobs(false);
   };
 
   useEffect(() => {
@@ -254,9 +265,9 @@ function DashboardPage() {
               </header>
 
               {loadingJobs ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
-                </div>
+                <JobCardSkeletonGrid />
+              ) : jobsError ? (
+                <LoadErrorPanel message={jobsError} onRetry={loadJobs} />
               ) : pastJobs.length === 0 ? (
                 <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
                   <FolderArchive className="h-6 w-6 text-foreground/40 mx-auto mb-3" />
@@ -318,9 +329,9 @@ function DashboardPage() {
                 </div>
 
                 {loadingJobs ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
-                  </div>
+                  <JobCardSkeletonGrid />
+                ) : jobsError ? (
+                  <LoadErrorPanel message={jobsError} onRetry={loadJobs} />
                 ) : activeJobs.length === 0 ? (
                   <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
                     <Sparkles className="h-6 w-6 text-accent-purple mx-auto mb-3" />
@@ -517,53 +528,72 @@ type ShortlistRow = {
 function ShortlistHub() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<ShortlistRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      if (!uid) {
-        setRows([]);
-        setLoading(false);
-        return;
+      setError(null);
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const uid = userData.user?.id;
+        if (!uid) {
+          if (!cancelled) setRows([]);
+          return;
+        }
+        const { data: jobsData, error: jobsErr } = await supabase
+          .from("jobs")
+          .select("id, job_title")
+          .eq("owner_id", uid);
+        if (jobsErr) throw jobsErr;
+        const jobs = jobsData ?? [];
+        const jobMap = new Map(jobs.map((j) => [j.id, j.job_title]));
+        const ids = jobs.map((j) => j.id);
+        if (ids.length === 0) {
+          if (!cancelled) setRows([]);
+          return;
+        }
+        const { data: subs, error: subsErr } = await supabase
+          .from("submissions")
+          .select(
+            "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, is_shortlisted",
+          )
+          .in("job_id", ids)
+          .eq("is_shortlisted", true)
+          .order("qa_score", { ascending: false, nullsFirst: false });
+        if (subsErr) throw subsErr;
+        if (cancelled) return;
+        setRows(
+          (subs ?? []).map((s) => ({
+            id: s.id,
+            candidate_name: s.candidate_name,
+            email: s.email,
+            whatsapp: s.whatsapp,
+            linkedin: s.linkedin,
+            qa_score: s.qa_score === null ? null : Number(s.qa_score),
+            created_at: s.created_at,
+            job_id: s.job_id,
+            job_title: jobMap.get(s.job_id) ?? "Untitled role",
+          })),
+        );
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : "Could not load shortlisted candidates.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      const { data: jobsData } = await supabase
-        .from("jobs")
-        .select("id, job_title")
-        .eq("owner_id", uid);
-      const jobs = jobsData ?? [];
-      const jobMap = new Map(jobs.map((j) => [j.id, j.job_title]));
-      const ids = jobs.map((j) => j.id);
-      if (ids.length === 0) {
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-      const { data: subs } = await supabase
-        .from("submissions")
-        .select(
-          "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, is_shortlisted",
-        )
-        .in("job_id", ids)
-        .eq("is_shortlisted", true)
-        .order("qa_score", { ascending: false, nullsFirst: false });
-      setRows(
-        (subs ?? []).map((s) => ({
-          id: s.id,
-          candidate_name: s.candidate_name,
-          email: s.email,
-          whatsapp: s.whatsapp,
-          linkedin: s.linkedin,
-          qa_score: s.qa_score === null ? null : Number(s.qa_score),
-          created_at: s.created_at,
-          job_id: s.job_id,
-          job_title: jobMap.get(s.job_id) ?? "Untitled role",
-        })),
-      );
-      setLoading(false);
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   const grouped = rows.reduce<Record<string, { jobId: string; title: string; items: ShortlistRow[] }>>(
     (acc, r) => {
@@ -595,6 +625,11 @@ function ShortlistHub() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
         </div>
+      ) : error ? (
+        <LoadErrorPanel
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       ) : groups.length === 0 ? (
         <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center max-w-xl mx-auto">
           <Inbox className="h-6 w-6 text-foreground/40 mx-auto mb-3" />
@@ -716,3 +751,54 @@ function ShortlistCandidateCard({ c }: { c: ShortlistRow }) {
   );
 }
 
+
+function JobCardSkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="bg-card border border-border rounded-2xl p-6 flex flex-col"
+        >
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <Skeleton className="h-6 w-2/3" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-1/2 mb-3" />
+          <Skeleton className="h-1.5 w-full mb-6" />
+          <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <Skeleton className="h-9 w-32 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LoadErrorPanel({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="bg-card border border-destructive/30 rounded-2xl p-8 text-center">
+      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 mb-3">
+        <AlertCircle className="h-5 w-5 text-destructive" />
+      </div>
+      <p className="text-foreground font-medium mb-1">Couldn't load this data</p>
+      <p className="text-sm text-muted-foreground mb-5 max-w-md mx-auto break-words">
+        {message}
+      </p>
+      <button
+        onClick={onRetry}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Try again
+      </button>
+    </div>
+  );
+}

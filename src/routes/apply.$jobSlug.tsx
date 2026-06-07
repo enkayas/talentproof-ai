@@ -11,6 +11,7 @@ import {
   UploadCloud,
   FileText,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,6 +67,8 @@ function ApplyPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loadingJob, setLoadingJob] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [submissionCount, setSubmissionCount] = useState(0);
 
   // form state
@@ -74,6 +77,7 @@ function ApplyPage() {
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [linkedin, setLinkedin] = useState("");
+  const [touched, setTouched] = useState<{ name?: boolean; email?: boolean; whatsapp?: boolean }>({});
   const [answers, setAnswers] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -83,45 +87,62 @@ function ApplyPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoadingJob(true);
+    setFetchError(null);
+    setNotFound(false);
     (async () => {
-      const [{ data, error }, { count }] = await Promise.all([
-        supabase
-          .from("jobs")
-          .select("id, job_title, questions, require_link, require_cv, status")
-          .eq("id", jobSlug)
-          .maybeSingle(),
-        supabase
-          .from("submissions")
-          .select("id", { count: "exact", head: true })
-          .eq("job_id", jobSlug),
-      ]);
+      try {
+        const [jobRes, countRes] = await Promise.all([
+          supabase
+            .from("jobs")
+            .select("id, job_title, questions, require_link, require_cv, status")
+            .eq("id", jobSlug)
+            .maybeSingle(),
+          supabase
+            .from("submissions")
+            .select("id", { count: "exact", head: true })
+            .eq("job_id", jobSlug),
+        ]);
 
-      if (cancelled) return;
-      if (error || !data) {
-        setNotFound(true);
-        setLoadingJob(false);
-        return;
+        if (cancelled) return;
+        if (jobRes.error) throw jobRes.error;
+        if (countRes.error) throw countRes.error;
+        if (!jobRes.data) {
+          setNotFound(true);
+          setLoadingJob(false);
+          return;
+        }
+        const data = jobRes.data;
+        const normalized: Job = {
+          id: data.id,
+          job_title: data.job_title,
+          questions: Array.isArray(data.questions)
+            ? (data.questions as string[])
+            : [],
+          require_link: !!data.require_link,
+          require_cv: !!data.require_cv,
+          status: (data as { status?: string }).status ?? "live",
+        };
+
+        setJob(normalized);
+        setSubmissionCount(countRes.count ?? 0);
+        setAnswers(new Array(normalized.questions.length).fill(""));
+      } catch (e) {
+        if (!cancelled) {
+          setFetchError(
+            e instanceof Error
+              ? e.message
+              : "Couldn't load this application. Please check your connection.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingJob(false);
       }
-      const normalized: Job = {
-        id: data.id,
-        job_title: data.job_title,
-        questions: Array.isArray(data.questions)
-          ? (data.questions as string[])
-          : [],
-        require_link: !!data.require_link,
-        require_cv: !!data.require_cv,
-        status: (data as { status?: string }).status ?? "live",
-      };
-
-      setJob(normalized);
-      setSubmissionCount(count ?? 0);
-      setAnswers(new Array(normalized.questions.length).fill(""));
-      setLoadingJob(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [jobSlug]);
+  }, [jobSlug, reloadKey]);
 
 
   const questionsCount = job?.questions.length ?? 0;
@@ -222,6 +243,29 @@ function ApplyPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 mb-6">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+          </div>
+          <h1 className="font-serif text-3xl text-foreground mb-3">
+            Couldn't load this application
+          </h1>
+          <p className="text-muted-foreground mb-6 break-words">{fetchError}</p>
+          <button
+            onClick={() => setReloadKey((k) => k + 1)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </button>
+        </div>
       </div>
     );
   }
@@ -339,6 +383,12 @@ function ApplyPage() {
                 value={name}
                 onChange={setName}
                 placeholder="Ada Lovelace"
+                onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                error={
+                  touched.name && name.trim().length === 0
+                    ? "Please enter your name."
+                    : null
+                }
               />
               <Field
                 label="Email Address"
@@ -346,6 +396,12 @@ function ApplyPage() {
                 onChange={setEmail}
                 placeholder="you@email.com"
                 type="email"
+                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+                error={
+                  touched.email && !/^\S+@\S+\.\S+$/.test(email.trim())
+                    ? "Enter a valid email address."
+                    : null
+                }
               />
               <Field
                 label="WhatsApp Number"
@@ -353,6 +409,12 @@ function ApplyPage() {
                 onChange={setWhatsapp}
                 placeholder="+91 98765 43210"
                 type="tel"
+                onBlur={() => setTouched((t) => ({ ...t, whatsapp: true }))}
+                error={
+                  touched.whatsapp && whatsapp.trim().length === 0
+                    ? "WhatsApp number is required."
+                    : null
+                }
               />
               <Field
                 label="LinkedIn Profile URL"
@@ -446,7 +508,17 @@ function ApplyPage() {
             </div>
 
             {submitError && (
-              <p className="text-sm text-red-400 mt-6">{submitError}</p>
+              <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
+                <p className="text-sm text-destructive flex-1">{submitError}</p>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border text-sm font-medium hover:bg-foreground/5 transition-colors self-start sm:self-auto"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Try again
+                </button>
+              </div>
             )}
 
             <NavBar
@@ -508,12 +580,16 @@ function Field({
   onChange,
   placeholder,
   type = "text",
+  onBlur,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  onBlur?: () => void;
+  error?: string | null;
 }) {
   return (
     <label className="block">
@@ -522,9 +598,18 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
-        className="w-full bg-transparent border-0 border-b border-border focus:border-accent-purple text-lg sm:text-xl py-3 outline-none transition-colors placeholder:text-foreground/30"
+        aria-invalid={error ? true : undefined}
+        className={`w-full bg-transparent border-0 border-b text-lg sm:text-xl py-3 outline-none transition-colors placeholder:text-foreground/30 ${
+          error
+            ? "border-destructive focus:border-destructive"
+            : "border-border focus:border-accent-purple"
+        }`}
       />
+      {error && (
+        <span className="block text-xs text-destructive mt-1.5">{error}</span>
+      )}
     </label>
   );
 }

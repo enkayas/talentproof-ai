@@ -16,7 +16,9 @@ import {
   Bookmark,
   CheckCircle2,
   FileText,
+  AlertCircle,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
@@ -97,6 +99,7 @@ function SubmissionsPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [contactOpen, setContactOpen] = useState<Set<string>>(new Set());
   const [rescoring, setRescoring] = useState<Set<string>>(new Set());
@@ -125,55 +128,69 @@ function SubmissionsPage() {
   };
 
   const load = async () => {
+    setLoadError(null);
+    try {
+      const [jobRes, subsRes] = await Promise.all([
+        supabase
+          .from("jobs")
+          .select("id, job_title, questions, require_link, require_cv, status")
+          .eq("id", jobId)
+          .maybeSingle(),
+        supabase
+          .from("submissions")
+          .select(
+            "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, cv_score, cv_analysis, ai_reasoning, created_at, is_shortlisted",
+          )
+          .eq("job_id", jobId)
+          .order("qa_score", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false }),
+      ]);
 
-    const [{ data: jobData }, { data: subsData }] = await Promise.all([
-      supabase
-        .from("jobs")
-        .select("id, job_title, questions, require_link, require_cv, status")
-        .eq("id", jobId)
-        .maybeSingle(),
-      supabase
-        .from("submissions")
-        .select(
-          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, cv_score, cv_analysis, ai_reasoning, created_at, is_shortlisted",
-        )
-        .eq("job_id", jobId)
-        .order("qa_score", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false }),
+      if (jobRes.error) throw jobRes.error;
+      if (subsRes.error) throw subsRes.error;
+      const jobData = jobRes.data;
+      const subsData = subsRes.data;
 
-    ]);
-    if (jobData) {
-      setJob({
-        id: jobData.id,
-        job_title: jobData.job_title,
-        questions: Array.isArray(jobData.questions)
-          ? (jobData.questions as string[])
-          : [],
-        require_link: !!jobData.require_link,
-        require_cv: !!jobData.require_cv,
-        status: (jobData as { status?: string }).status ?? "live",
-      });
+      if (jobData) {
+        setJob({
+          id: jobData.id,
+          job_title: jobData.job_title,
+          questions: Array.isArray(jobData.questions)
+            ? (jobData.questions as string[])
+            : [],
+          require_link: !!jobData.require_link,
+          require_cv: !!jobData.require_cv,
+          status: (jobData as { status?: string }).status ?? "live",
+        });
+      }
+
+      setSubs(
+        (subsData ?? []).map((s) => {
+          const row = s as Record<string, unknown>;
+          return {
+            ...s,
+            answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
+            qa_score: s.qa_score === null ? null : Number(s.qa_score),
+            cv_score:
+              row.cv_score === null || row.cv_score === undefined
+                ? null
+                : Number(row.cv_score),
+            cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
+            ai_reasoning: (row.ai_reasoning as string | null) ?? null,
+            cv_file_path: (row.cv_file_path as string | null) ?? null,
+            is_shortlisted: !!row.is_shortlisted,
+          } as Submission;
+        }),
+      );
+    } catch (e) {
+      setLoadError(
+        e instanceof Error
+          ? e.message
+          : "Could not load submissions. Please try again.",
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setSubs(
-      (subsData ?? []).map((s) => {
-        const row = s as Record<string, unknown>;
-        return {
-          ...s,
-          answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
-          qa_score: s.qa_score === null ? null : Number(s.qa_score),
-          cv_score:
-            row.cv_score === null || row.cv_score === undefined
-              ? null
-              : Number(row.cv_score),
-          cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
-          ai_reasoning: (row.ai_reasoning as string | null) ?? null,
-          cv_file_path: (row.cv_file_path as string | null) ?? null,
-          is_shortlisted: !!row.is_shortlisted,
-        } as Submission;
-      }),
-    );
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -233,6 +250,9 @@ function SubmissionsPage() {
     try {
       await scoreSubmission({ data: { submissionId: id } });
       await load();
+    } catch {
+      toast.error("Re-scoring failed. Please try again.");
+      await load();
     } finally {
       setRescoring((prev) => {
         const next = new Set(prev);
@@ -257,53 +277,86 @@ function SubmissionsPage() {
 
   const exportCsv = () => {
     if (!job) return;
-    const headers = [
-      "Submitted At",
-      "Score",
-      "Name",
-      "Email",
-      "WhatsApp",
-      "LinkedIn",
-      ...job.questions.map((q, i) => `Q${i + 1}: ${q}`),
-      ...(job.require_link ? ["Portfolio Link"] : []),
-      ...(job.require_cv ? ["CV Text"] : []),
-      "AI Reasoning",
-    ];
-    const rows = subs.map((s) => [
-      new Date(s.created_at).toISOString(),
-      s.qa_score === null ? "" : String(Math.round(s.qa_score)),
-      s.candidate_name,
-      s.email,
-      s.whatsapp ?? "",
-      s.linkedin ?? "",
-      ...job.questions.map((_, i) => s.answers[i] ?? ""),
-      ...(job.require_link ? [s.portfolio_link ?? ""] : []),
-      ...(job.require_cv ? [s.cv_text ?? ""] : []),
-      s.ai_reasoning ?? "",
-    ]);
-    const csv = [headers, ...rows]
-      .map((row) =>
-        row
-          .map((cell) => {
-            const v = String(cell ?? "");
-            return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-          })
-          .join(","),
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${job.id}-submissions.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const headers = [
+        "Submitted At",
+        "Score",
+        "Name",
+        "Email",
+        "WhatsApp",
+        "LinkedIn",
+        ...job.questions.map((q, i) => `Q${i + 1}: ${q}`),
+        ...(job.require_link ? ["Portfolio Link"] : []),
+        ...(job.require_cv ? ["CV Text"] : []),
+        "AI Reasoning",
+      ];
+      const rows = subs.map((s) => [
+        new Date(s.created_at).toISOString(),
+        s.qa_score === null ? "" : String(Math.round(s.qa_score)),
+        s.candidate_name,
+        s.email,
+        s.whatsapp ?? "",
+        s.linkedin ?? "",
+        ...job.questions.map((_, i) => s.answers[i] ?? ""),
+        ...(job.require_link ? [s.portfolio_link ?? ""] : []),
+        ...(job.require_cv ? [s.cv_text ?? ""] : []),
+        s.ai_reasoning ?? "",
+      ]);
+      const csv = [headers, ...rows]
+        .map((row) =>
+          row
+            .map((cell) => {
+              const v = String(cell ?? "");
+              return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+            })
+            .join(","),
+        )
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${job.id}-submissions.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Could not export CSV. Please try again.");
+    }
   };
 
   if (loading) {
+    return <SubmissionsSkeleton />;
+  }
+
+  if (loadError) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md text-center bg-card border border-destructive/30 rounded-2xl p-8">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 mb-3">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+          </div>
+          <h1 className="font-serif text-2xl mb-2">Couldn't load submissions</h1>
+          <p className="text-sm text-muted-foreground mb-5 break-words">{loadError}</p>
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => {
+                setLoading(true);
+                load();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border text-sm font-medium hover:bg-foreground/5"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -840,5 +893,49 @@ function OpenCvButton({ submissionId }: { submissionId: string }) {
       Open Original CV PDF
       <ExternalLink className="h-3.5 w-3.5 opacity-80" />
     </button>
+  );
+}
+
+function SubmissionsSkeleton() {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="max-w-6xl mx-auto px-6 md:px-10 py-10">
+        <Skeleton className="h-4 w-32 mb-6" />
+        <div className="mb-10 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-10 w-2/3" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="hidden md:grid grid-cols-[64px_minmax(0,2.4fr)_1fr_1fr_1fr_1.4fr] gap-4 px-6 py-3 border-b border-border bg-foreground/5">
+            {["Rank", "Candidate", "Submitted", "Answer Score", "CV Score", "Actions"].map((h) => (
+              <Skeleton key={h} className="h-3 w-20" />
+            ))}
+          </div>
+          <div className="divide-y divide-border">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="px-6 py-4 grid grid-cols-1 md:grid-cols-[64px_minmax(0,2.4fr)_1fr_1fr_1fr_1.4fr] gap-2 md:gap-4 items-center"
+              >
+                <Skeleton className="h-7 w-7 rounded-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-6 w-16 rounded-full mx-auto" />
+                <Skeleton className="h-6 w-16 rounded-full mx-auto" />
+                <div className="flex md:justify-end items-center gap-2">
+                  <Skeleton className="h-9 w-9 rounded-full" />
+                  <Skeleton className="h-9 w-9 rounded-full" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
