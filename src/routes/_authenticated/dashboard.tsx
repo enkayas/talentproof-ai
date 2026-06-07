@@ -625,6 +625,11 @@ function ShortlistHub() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
         </div>
+      ) : error ? (
+        <LoadErrorPanel
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       ) : groups.length === 0 ? (
         <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center max-w-xl mx-auto">
           <Inbox className="h-6 w-6 text-foreground/40 mx-auto mb-3" />
