@@ -528,53 +528,72 @@ type ShortlistRow = {
 function ShortlistHub() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<ShortlistRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      if (!uid) {
-        setRows([]);
-        setLoading(false);
-        return;
+      setError(null);
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const uid = userData.user?.id;
+        if (!uid) {
+          if (!cancelled) setRows([]);
+          return;
+        }
+        const { data: jobsData, error: jobsErr } = await supabase
+          .from("jobs")
+          .select("id, job_title")
+          .eq("owner_id", uid);
+        if (jobsErr) throw jobsErr;
+        const jobs = jobsData ?? [];
+        const jobMap = new Map(jobs.map((j) => [j.id, j.job_title]));
+        const ids = jobs.map((j) => j.id);
+        if (ids.length === 0) {
+          if (!cancelled) setRows([]);
+          return;
+        }
+        const { data: subs, error: subsErr } = await supabase
+          .from("submissions")
+          .select(
+            "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, is_shortlisted",
+          )
+          .in("job_id", ids)
+          .eq("is_shortlisted", true)
+          .order("qa_score", { ascending: false, nullsFirst: false });
+        if (subsErr) throw subsErr;
+        if (cancelled) return;
+        setRows(
+          (subs ?? []).map((s) => ({
+            id: s.id,
+            candidate_name: s.candidate_name,
+            email: s.email,
+            whatsapp: s.whatsapp,
+            linkedin: s.linkedin,
+            qa_score: s.qa_score === null ? null : Number(s.qa_score),
+            created_at: s.created_at,
+            job_id: s.job_id,
+            job_title: jobMap.get(s.job_id) ?? "Untitled role",
+          })),
+        );
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : "Could not load shortlisted candidates.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      const { data: jobsData } = await supabase
-        .from("jobs")
-        .select("id, job_title")
-        .eq("owner_id", uid);
-      const jobs = jobsData ?? [];
-      const jobMap = new Map(jobs.map((j) => [j.id, j.job_title]));
-      const ids = jobs.map((j) => j.id);
-      if (ids.length === 0) {
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-      const { data: subs } = await supabase
-        .from("submissions")
-        .select(
-          "id, candidate_name, email, whatsapp, linkedin, qa_score, created_at, job_id, is_shortlisted",
-        )
-        .in("job_id", ids)
-        .eq("is_shortlisted", true)
-        .order("qa_score", { ascending: false, nullsFirst: false });
-      setRows(
-        (subs ?? []).map((s) => ({
-          id: s.id,
-          candidate_name: s.candidate_name,
-          email: s.email,
-          whatsapp: s.whatsapp,
-          linkedin: s.linkedin,
-          qa_score: s.qa_score === null ? null : Number(s.qa_score),
-          created_at: s.created_at,
-          job_id: s.job_id,
-          job_title: jobMap.get(s.job_id) ?? "Untitled role",
-        })),
-      );
-      setLoading(false);
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   const grouped = rows.reduce<Record<string, { jobId: string; title: string; items: ShortlistRow[] }>>(
     (acc, r) => {
