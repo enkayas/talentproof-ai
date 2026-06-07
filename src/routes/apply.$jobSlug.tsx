@@ -153,7 +153,7 @@ function ApplyPage() {
 
   const proofValid =
     (!job?.require_link || portfolio.trim().length > 0) &&
-    (!job?.require_cv || cvText.trim().length > 0);
+    (!job?.require_cv || cvFile !== null);
 
   const goNext = () => setStep((s) => s + 1);
   const goBack = () => setStep((s) => Math.max(0, s - 1));
@@ -162,6 +162,33 @@ function ApplyPage() {
     setSubmitError(null);
     setStep(submittingStepIdx);
     try {
+      let cvFilePath: string | null = null;
+
+      if (job?.require_cv && cvFile) {
+        setCvUploading(true);
+        setCvUploadProgress(15);
+        const ext = (cvFile.name.split(".").pop() || "pdf").toLowerCase();
+        const safeName = name.trim().replace(/\s+/g, "-").toLowerCase().replace(/[^a-z0-9-]/g, "");
+        const path = `${jobSlug}/${Date.now()}-${safeName || "candidate"}.${ext}`;
+        setCvUploadProgress(45);
+        const { error: uploadError } = await supabase.storage
+          .from("cv-resumes")
+          .upload(path, cvFile, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: cvFile.type || undefined,
+          });
+        setCvUploadProgress(100);
+        setCvUploading(false);
+        if (uploadError) {
+          toast.error("Could not upload your resume. Please try again.");
+          setSubmitError("Resume upload failed. Please try again.");
+          setStep(proofStepIdx);
+          return;
+        }
+        cvFilePath = path;
+      }
+
       const result = await submitApplication({
         data: {
           jobId: jobSlug,
@@ -171,7 +198,8 @@ function ApplyPage() {
           linkedin: linkedin.trim() || null,
           answers,
           portfolio_link: job?.require_link ? portfolio.trim() : null,
-          cv_text: job?.require_cv ? cvText.trim() : null,
+          cv_text: null,
+          cv_file_path: cvFilePath,
         },
       });
       if (!result?.ok) {
