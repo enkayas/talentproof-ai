@@ -190,6 +190,8 @@ function AuthPage() {
               value={email}
               onChange={setEmail}
               required
+              onBlur={() => setEmailTouched(true)}
+              error={emailError}
             />
             <Field
               icon={<Lock className="h-4 w-4" />}
