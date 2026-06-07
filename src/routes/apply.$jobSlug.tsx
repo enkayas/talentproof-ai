@@ -636,3 +636,119 @@ function NavBar({
     </div>
   );
 }
+
+const MAX_CV_BYTES = 5 * 1024 * 1024;
+const ALLOWED_CV_EXT = ["pdf", "doc", "docx"];
+
+function CvUpload({
+  file,
+  onFile,
+  uploading,
+  progress,
+}: {
+  file: File | null;
+  onFile: (f: File | null) => void;
+  uploading: boolean;
+  progress: number;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFile = (f: File | null) => {
+    if (!f) return;
+    const ext = (f.name.split(".").pop() || "").toLowerCase();
+    if (!ALLOWED_CV_EXT.includes(ext)) {
+      toast.error("Only PDF or Word documents (.pdf, .doc, .docx) are allowed.");
+      return;
+    }
+    if (f.size > MAX_CV_BYTES) {
+      toast.error("File too large. Maximum size is 5MB.");
+      return;
+    }
+    onFile(f);
+  };
+
+  return (
+    <div>
+      <label className="block text-sm text-foreground mb-1 font-medium">
+        Upload Resume / CV
+      </label>
+      <p className="text-xs text-foreground/50 mb-3">
+        Supports PDF or Word documents (.pdf, .doc, .docx) up to 5MB.
+      </p>
+
+      {!file ? (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            handleFile(e.dataTransfer.files?.[0] ?? null);
+          }}
+          className={`group w-full rounded-2xl border-2 border-dashed p-10 flex flex-col items-center justify-center text-center transition-all ${
+            dragOver
+              ? "border-accent-purple bg-accent-purple/5"
+              : "border-border bg-card hover:border-accent-purple/60 hover:bg-accent-purple/[0.03]"
+          }`}
+        >
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent-purple/15 mb-4 group-hover:scale-110 transition-transform">
+            <UploadCloud className="h-5 w-5 text-accent-purple" />
+          </div>
+          <p className="text-sm font-medium text-foreground">
+            Drag & drop your resume here
+          </p>
+          <p className="text-xs text-foreground/50 mt-1">
+            or <span className="text-accent-purple">click to browse</span>
+          </p>
+        </button>
+      ) : (
+        <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4">
+          <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
+            <FileText className="h-5 w-5 text-emerald-400" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground truncate">
+              {file.name}
+            </p>
+            <p className="text-xs text-foreground/50">
+              {(file.size / 1024).toFixed(0)} KB
+              {uploading ? " · Uploading…" : " · Ready to submit"}
+            </p>
+            {uploading && (
+              <div className="mt-2 h-1 w-full rounded-full bg-foreground/10 overflow-hidden">
+                <div
+                  className="h-full bg-accent-purple transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
+          </div>
+          {!uploading && (
+            <button
+              type="button"
+              onClick={() => onFile(null)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/50 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+              aria-label="Remove file"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+      />
+    </div>
+  );
+}
