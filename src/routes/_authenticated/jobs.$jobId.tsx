@@ -481,9 +481,14 @@ function SubmissionsPage() {
             {subs.length > 0 && (
               <button
                 onClick={exportCsv}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-border text-foreground hover:bg-card text-sm font-medium transition-colors"
+                disabled={exporting}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-border text-foreground hover:bg-card text-sm font-medium transition-colors disabled:opacity-60"
               >
-                <Download className="h-4 w-4" />
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
                 Export CSV
               </button>
             )}
