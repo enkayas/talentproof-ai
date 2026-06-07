@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
 import { closeJob as closeJobFn, toggleShortlist as toggleShortlistFn } from "@/lib/jobs.functions";
+import { ScoreBadge } from "@/components/ScoreBadge";
 
 
 export const Route = createFileRoute("/_authenticated/jobs/$jobId")({
@@ -48,51 +49,32 @@ type CvAnalysis = {
   error?: string;
 };
 
+// P7: heavy fields (cv_text, cv_analysis, ai_reasoning) are loaded lazily when
+// a row is expanded. The list query stays lightweight and the 6s poll only
+// re-downloads scoreboard data.
+type SubmissionDetails = {
+  cv_text: string | null;
+  cv_file_path: string | null;
+  cv_analysis: CvAnalysis | null;
+  ai_reasoning: string | null;
+  answers: string[];
+  portfolio_link: string | null;
+};
+
 type Submission = {
   id: string;
   candidate_name: string;
   email: string;
   whatsapp: string | null;
   linkedin: string | null;
-  answers: string[];
-  portfolio_link: string | null;
-  cv_text: string | null;
-  cv_file_path: string | null;
   qa_score: number | null;
   cv_score: number | null;
-  cv_analysis: CvAnalysis | null;
-  ai_reasoning: string | null;
   created_at: string;
   is_shortlisted: boolean;
+  details?: SubmissionDetails;
+  detailsLoading?: boolean;
+  detailsError?: string | null;
 };
-
-function ScoreBadge({ score, size = "sm" }: { score: number | null; size?: "sm" | "md" }) {
-  const px = size === "md" ? "px-3 py-1.5 text-sm" : "px-2.5 py-1 text-xs";
-  if (score === null || score === undefined) {
-    return (
-      <span
-        className={`inline-flex items-center gap-1.5 rounded-full ${px} font-medium bg-slate-800/60 text-slate-300 border border-slate-700/60 animate-pulse`}
-      >
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Evaluating…
-      </span>
-    );
-  }
-  const s = Math.round(score);
-  const tone =
-    s >= 80
-      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800/50"
-      : s >= 50
-      ? "bg-amber-950/40 text-amber-400 border-amber-800/50"
-      : "bg-rose-950/40 text-rose-400 border-rose-800/50";
-  return (
-    <span
-      className={`inline-flex items-center rounded-full ${px} font-medium tabular-nums border ${tone}`}
-    >
-      {s}/100
-    </span>
-  );
-}
 
 function SubmissionsPage() {
   const { jobId } = useParams({ from: "/_authenticated/jobs/$jobId" });
