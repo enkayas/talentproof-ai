@@ -265,9 +265,9 @@ function DashboardPage() {
               </header>
 
               {loadingJobs ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
-                </div>
+                <JobCardSkeletonGrid />
+              ) : jobsError ? (
+                <LoadErrorPanel message={jobsError} onRetry={loadJobs} />
               ) : pastJobs.length === 0 ? (
                 <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
                   <FolderArchive className="h-6 w-6 text-foreground/40 mx-auto mb-3" />
@@ -329,9 +329,9 @@ function DashboardPage() {
                 </div>
 
                 {loadingJobs ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
-                  </div>
+                  <JobCardSkeletonGrid />
+                ) : jobsError ? (
+                  <LoadErrorPanel message={jobsError} onRetry={loadJobs} />
                 ) : activeJobs.length === 0 ? (
                   <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
                     <Sparkles className="h-6 w-6 text-accent-purple mx-auto mb-3" />
