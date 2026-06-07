@@ -5,10 +5,18 @@ import { supabase } from "@/integrations/supabase/client";
 
 type AuthSearch = { mode?: "login" | "signup"; redirect?: string };
 
+function safeRedirect(value: unknown): string {
+  if (typeof value !== "string") return "/dashboard";
+  // Allow only same-origin relative paths. Block protocol-relative (//evil.com)
+  // and absolute URLs (https://evil.com) to prevent open-redirect phishing.
+  if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+  return value;
+}
+
 export const Route = createFileRoute("/auth")({
   validateSearch: (search: Record<string, unknown>): AuthSearch => ({
     mode: search.mode === "signup" ? "signup" : "login",
-    redirect: typeof search.redirect === "string" ? search.redirect : "/dashboard",
+    redirect: safeRedirect(search.redirect),
   }),
   head: () => ({
     meta: [
@@ -67,7 +75,7 @@ function AuthPage() {
         });
         if (signUpError) throw signUpError;
         if (data.session) {
-          navigate({ to: (redirect ?? "/dashboard") as "/dashboard" });
+          navigate({ to: (redirect ?? "/dashboard") as "/dashboard", replace: true });
         } else {
           setInfo(
             "Account created. Check your email to confirm, then log in.",
@@ -80,7 +88,7 @@ function AuthPage() {
           password,
         });
         if (signInError) throw signInError;
-        navigate({ to: (redirect ?? "/dashboard") as "/dashboard" });
+          navigate({ to: (redirect ?? "/dashboard") as "/dashboard", replace: true });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

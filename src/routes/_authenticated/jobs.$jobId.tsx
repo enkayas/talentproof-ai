@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
+import { closeJob as closeJobFn, toggleShortlist as toggleShortlistFn } from "@/lib/jobs.functions";
 
 
 export const Route = createFileRoute("/_authenticated/jobs/$jobId")({
@@ -113,14 +114,13 @@ function SubmissionsPage() {
   const closeApplication = async () => {
     if (!job) return;
     setClosing(true);
-    const { error } = await supabase
-      .from("jobs")
-      .update({ status: "closed" })
-      .eq("id", job.id);
+    const res = await closeJobFn({ data: { jobId: job.id } });
     setClosing(false);
-    if (!error) {
+    if (res.ok) {
       setJob({ ...job, status: "closed" });
       setShowCloseModal(false);
+    } else {
+      toast.error("Could not close the job.");
     }
   };
 
@@ -245,11 +245,8 @@ function SubmissionsPage() {
   const toggleShortlist = async (id: string, current: boolean) => {
     const next = !current;
     setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, is_shortlisted: next } : s)));
-    const { error } = await supabase
-      .from("submissions")
-      .update({ is_shortlisted: next })
-      .eq("id", id);
-    if (error) {
+    const res = await toggleShortlistFn({ data: { submissionId: id, value: next } });
+    if (!res.ok) {
       setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, is_shortlisted: current } : s)));
       toast.error("Could not update shortlist.");
       return;
