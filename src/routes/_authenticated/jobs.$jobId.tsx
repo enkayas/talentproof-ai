@@ -453,13 +453,13 @@ function SubmissionsPage() {
         ) : (
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             {/* Table header */}
-            <div className="hidden md:grid grid-cols-10 gap-4 px-6 py-3 border-b border-border bg-foreground/5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-              <div className="col-span-1">Rank</div>
-              <div className="col-span-3">Candidate</div>
-              <div className="col-span-1">Submitted</div>
-              <div className="col-span-2">Answer Score</div>
-              <div className="col-span-2">CV Score</div>
-              <div className="col-span-1 text-right">Actions</div>
+            <div className="hidden md:grid grid-cols-[64px_minmax(0,2.4fr)_1fr_1fr_1fr_1.4fr] gap-4 px-6 py-3 border-b border-border bg-foreground/5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+              <div className="text-left">Rank</div>
+              <div className="text-left">Candidate</div>
+              <div className="text-left">Submitted</div>
+              <div className="text-center">Answer Score</div>
+              <div className="text-center">CV Score</div>
+              <div className="text-right">Actions</div>
             </div>
 
             <div className="divide-y divide-border">
