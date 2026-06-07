@@ -612,38 +612,6 @@ function SubmissionsPage() {
   );
 }
 
-function CvDownloadButton({ path }: { path: string }) {
-  const [loading, setLoading] = useState(false);
-  const filename = path.split("/").pop() ?? "resume";
-  const openCv = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.storage
-      .from("cv-resumes")
-      .createSignedUrl(path, 60 * 10);
-    setLoading(false);
-    if (error || !data?.signedUrl) {
-      toast.error("Could not open resume file.");
-      return;
-    }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-  };
-  return (
-    <button
-      onClick={openCv}
-      disabled={loading}
-      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-background/40 border border-border hover:border-accent-purple hover:bg-accent-purple/5 transition-colors text-sm"
-    >
-      {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin text-accent-purple" />
-      ) : (
-        <Download className="h-4 w-4 text-accent-purple" />
-      )}
-      <span className="text-foreground truncate max-w-[300px]">{filename}</span>
-      <span className="text-xs text-foreground/50">· Download</span>
-    </button>
-  );
-}
-
 function CandidateDrawerTabs({
   submission: s,
   questions,
