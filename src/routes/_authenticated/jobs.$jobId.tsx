@@ -476,8 +476,8 @@ function SubmissionsPage() {
                         : ""
                     }`}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-10 gap-2 md:gap-4 items-center">
-                      <div className="md:col-span-1 flex items-center gap-1.5">
+                    <div className="grid grid-cols-1 md:grid-cols-[64px_minmax(0,2.4fr)_1fr_1fr_1fr_1.4fr] gap-2 md:gap-4 items-center">
+                      <div className="flex items-center gap-1.5">
                         {isTop ? (
                           <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-400/15 border border-amber-400/40">
                             <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
@@ -489,7 +489,7 @@ function SubmissionsPage() {
                         )}
                       </div>
 
-                      <div className="md:col-span-3 min-w-0">
+                      <div className="min-w-0">
                         <div className="font-medium text-foreground">
                           {s.candidate_name}
                         </div>
