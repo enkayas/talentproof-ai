@@ -21,6 +21,8 @@ import {
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadErrorPanel } from "@/components/LoadErrorPanel";
+import { ScoreBadge } from "@/components/ScoreBadge";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -65,7 +67,8 @@ function DashboardPage() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
-  const [email, setEmail] = useState<string>("");
+  const { user } = useCurrentUser();
+  const email = user?.email ?? "";
 
   const today = useMemo(
     () =>
@@ -78,49 +81,20 @@ function DashboardPage() {
     [],
   );
 
+  // P8: single RPC call returns jobs + submission counts (server-side aggregation).
   const loadJobs = async () => {
     setLoadingJobs(true);
     setJobsError(null);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      setEmail(userData.user?.email ?? "");
-      if (!uid) {
-        setJobs([]);
-        return;
-      }
-      const { data: jobsData, error: jobsErr } = await supabase
-        .from("jobs")
-        .select("id, job_title, created_at, status")
-        .eq("owner_id", uid)
-        .order("created_at", { ascending: false });
-      if (jobsErr) throw jobsErr;
-
-      if (!jobsData) {
-        setJobs([]);
-        return;
-      }
-
-      // Count submissions per job
-      const ids = jobsData.map((j) => j.id);
-      let counts: Record<string, number> = {};
-      if (ids.length > 0) {
-        const { data: subs, error: subsErr } = await supabase
-          .from("submissions")
-          .select("job_id")
-          .in("job_id", ids);
-        if (subsErr) throw subsErr;
-        counts = (subs ?? []).reduce<Record<string, number>>((acc, s) => {
-          acc[s.job_id] = (acc[s.job_id] ?? 0) + 1;
-          return acc;
-        }, {});
-      }
-
+      const { data, error } = await supabase.rpc("jobs_with_counts");
+      if (error) throw error;
       setJobs(
-        jobsData.map((j) => ({
-          ...j,
-          submission_count: counts[j.id] ?? 0,
-          status: (j as { status?: string }).status ?? "live",
+        (data ?? []).map((j) => ({
+          id: j.id,
+          job_title: j.job_title,
+          created_at: j.created_at,
+          status: j.status ?? "live",
+          submission_count: Number(j.submission_count ?? 0),
         })),
       );
     } catch (e) {
