@@ -94,24 +94,103 @@ async function runScoring(submissionId: string) {
   console.log("[scoreSubmission] job_description:", job_description ?? "(none)");
   console.log("[scoreSubmission] base64Pdf[0..50]:", base64Pdf.slice(0, 50));
 
-  // 3. Mock AI response.
-  const mockAiResponse = {
-    cv_score: 70,
-    key_matches: ["Placeholder match"],
-    cv_summary: "Placeholder summary",
-  };
+  // 3. Build Gemini multimodal request.
+  const systemPrompt = `You are a deterministic, elite corporate recruitment algorithm. Compare the attached candidate CV PDF directly against the target Job Title: ${job_title} and Job Description: ${job_description ?? "(not provided)"}. Calculate an exact mathematical integer score from 0 to 100 by summing these three explicit pillars. Do not use generic holistic rounding.
+
+- Pillar 1: Role & Domain Core Alignment (Max 40 Points)
+  * 0-15 Points: The candidate's past job titles and described duties share zero industry or functional overlap with the target job title.
+  * 16-30 Points: The candidate operates in the correct general industry, but their historical tier, scope of work, or experience depth is too shallow for the target requirements.
+  * 31-40 Points: Past job titles and work history map cleanly and directly to the target job title. They show a clear historical trajectory proving they can step into this role immediately on Day 1.
+
+- Pillar 2: Hard Skill & Tool Competency Matrix (Max 30 Points)
+  * Identify direct hard skills, tools, legal frameworks, or software stacks explicitly requested in the Job Description.
+  * Calculate score as: S_skills = Min(30, Number_of_Direct_Matches * 6).
+  * CRITICAL PENALTY: If a hard skill is listed as a loose buzzword in a 'Skills list' but has zero supporting context or mention within their actual work history bullet points, reduce that specific skill's value by 50% to penalize keyword stuffing.
+
+- Pillar 3: Impact Density & Proven Track Record (Max 30 Points)
+  * 0-10 Points (Passive/Duty-focused): The resume elements only list daily tasks and generic operational assignments.
+  * 25-30 Points (Active/Outcome-driven): Past roles showcase clear, metric-driven outcome statements featuring explicit numerical data vectors, growth percentages, monetary values, or time-saving milestones.
+
+Return strictly clean JSON, no markdown fences, no conversational wrapping:
+{"cv_score": <integer>, "key_matches": ["2-3 specific positive bullets of direct operational or metric alignment"], "cv_summary": "<concise 2-sentence professional background summary highlighting biggest strengths for this role>"}
+
+CRITICAL: Do not include any negative feedback, weaknesses, or missing-gap arrays in the output.`;
+
+  let aiResponse: { cv_score: number; key_matches: string[]; cv_summary: string } | null = null;
+
+  try {
+    const userContent: Array<Record<string, unknown>> = [
+      { type: "text", text: `Evaluate the attached CV for the role above. Return JSON only.` },
+    ];
+    if (base64Pdf) {
+      userContent.push({
+        type: "file",
+        file: {
+          filename: "cv.pdf",
+          file_data: `data:application/pdf;base64,${base64Pdf}`,
+        },
+      });
+    }
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error("[scoreSubmission] gateway error", res.status, errBody);
+      return { ok: false as const, reason: `gateway-${res.status}` };
+    }
+
+    const json = await res.json();
+    const content: string = json?.choices?.[0]?.message?.content ?? "";
+    const match = content.match(/\{[\s\S]*\}/);
+    if (!match) return { ok: false as const, reason: "no-json" };
+
+    const parsed = JSON.parse(match[0]);
+    const score = Number(parsed?.cv_score);
+    if (!Number.isFinite(score)) return { ok: false as const, reason: "bad-score" };
+
+    aiResponse = {
+      cv_score: Math.max(0, Math.min(100, Math.round(score))),
+      key_matches: Array.isArray(parsed?.key_matches)
+        ? parsed.key_matches.map((s: unknown) => String(s)).slice(0, 5)
+        : [],
+      cv_summary: String(parsed?.cv_summary ?? "").slice(0, 1000),
+    };
+  } catch (e) {
+    console.error("[scoreSubmission] exception", e);
+    return { ok: false as const, reason: "exception" };
+  }
+
+  // 4. Persist to submissions row.
+  const reasoningBlock = [
+    aiResponse.cv_summary,
+    aiResponse.key_matches.length ? "\n\nKey matches:\n- " + aiResponse.key_matches.join("\n- ") : "",
+  ].join("");
 
   const { error: updErr } = await supabaseAdmin
     .from("submissions")
     .update({
-      qa_score: mockAiResponse.cv_score,
-      ai_reasoning: mockAiResponse.cv_summary,
+      qa_score: aiResponse.cv_score,
+      ai_reasoning: reasoningBlock,
     })
     .eq("id", submissionId);
 
   if (updErr) return { ok: false as const, reason: "update-failed" };
 
-  return { ok: true as const, mockAiResponse };
+  return { ok: true as const, ...aiResponse };
 }
 
 export const scoreSubmission = createServerFn({ method: "POST" })

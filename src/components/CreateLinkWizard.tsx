@@ -132,6 +132,7 @@ export function CreateLinkWizard() {
       const { error } = await supabase.from("jobs").insert({
         id,
         job_title: title,
+        job_description: desc,
         questions: selectedQuestions,
         require_link: reqLink,
         require_cv: reqCv,
