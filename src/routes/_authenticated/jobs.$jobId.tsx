@@ -128,55 +128,69 @@ function SubmissionsPage() {
   };
 
   const load = async () => {
+    setLoadError(null);
+    try {
+      const [jobRes, subsRes] = await Promise.all([
+        supabase
+          .from("jobs")
+          .select("id, job_title, questions, require_link, require_cv, status")
+          .eq("id", jobId)
+          .maybeSingle(),
+        supabase
+          .from("submissions")
+          .select(
+            "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, cv_score, cv_analysis, ai_reasoning, created_at, is_shortlisted",
+          )
+          .eq("job_id", jobId)
+          .order("qa_score", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false }),
+      ]);
 
-    const [{ data: jobData }, { data: subsData }] = await Promise.all([
-      supabase
-        .from("jobs")
-        .select("id, job_title, questions, require_link, require_cv, status")
-        .eq("id", jobId)
-        .maybeSingle(),
-      supabase
-        .from("submissions")
-        .select(
-          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, cv_score, cv_analysis, ai_reasoning, created_at, is_shortlisted",
-        )
-        .eq("job_id", jobId)
-        .order("qa_score", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false }),
+      if (jobRes.error) throw jobRes.error;
+      if (subsRes.error) throw subsRes.error;
+      const jobData = jobRes.data;
+      const subsData = subsRes.data;
 
-    ]);
-    if (jobData) {
-      setJob({
-        id: jobData.id,
-        job_title: jobData.job_title,
-        questions: Array.isArray(jobData.questions)
-          ? (jobData.questions as string[])
-          : [],
-        require_link: !!jobData.require_link,
-        require_cv: !!jobData.require_cv,
-        status: (jobData as { status?: string }).status ?? "live",
-      });
+      if (jobData) {
+        setJob({
+          id: jobData.id,
+          job_title: jobData.job_title,
+          questions: Array.isArray(jobData.questions)
+            ? (jobData.questions as string[])
+            : [],
+          require_link: !!jobData.require_link,
+          require_cv: !!jobData.require_cv,
+          status: (jobData as { status?: string }).status ?? "live",
+        });
+      }
+
+      setSubs(
+        (subsData ?? []).map((s) => {
+          const row = s as Record<string, unknown>;
+          return {
+            ...s,
+            answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
+            qa_score: s.qa_score === null ? null : Number(s.qa_score),
+            cv_score:
+              row.cv_score === null || row.cv_score === undefined
+                ? null
+                : Number(row.cv_score),
+            cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
+            ai_reasoning: (row.ai_reasoning as string | null) ?? null,
+            cv_file_path: (row.cv_file_path as string | null) ?? null,
+            is_shortlisted: !!row.is_shortlisted,
+          } as Submission;
+        }),
+      );
+    } catch (e) {
+      setLoadError(
+        e instanceof Error
+          ? e.message
+          : "Could not load submissions. Please try again.",
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setSubs(
-      (subsData ?? []).map((s) => {
-        const row = s as Record<string, unknown>;
-        return {
-          ...s,
-          answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
-          qa_score: s.qa_score === null ? null : Number(s.qa_score),
-          cv_score:
-            row.cv_score === null || row.cv_score === undefined
-              ? null
-              : Number(row.cv_score),
-          cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
-          ai_reasoning: (row.ai_reasoning as string | null) ?? null,
-          cv_file_path: (row.cv_file_path as string | null) ?? null,
-          is_shortlisted: !!row.is_shortlisted,
-        } as Submission;
-      }),
-    );
-    setLoading(false);
   };
 
   useEffect(() => {
