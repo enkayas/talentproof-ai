@@ -126,7 +126,7 @@ function SubmissionsPage() {
       supabase
         .from("submissions")
         .select(
-          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, ai_reasoning, created_at, is_shortlisted",
+          "id, candidate_name, email, whatsapp, linkedin, answers, portfolio_link, cv_text, cv_file_path, qa_score, cv_score, cv_analysis, ai_reasoning, created_at, is_shortlisted",
         )
         .eq("job_id", jobId)
         .order("qa_score", { ascending: false, nullsFirst: false })
@@ -147,14 +147,22 @@ function SubmissionsPage() {
     }
 
     setSubs(
-      (subsData ?? []).map((s) => ({
-        ...s,
-        answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
-        qa_score: s.qa_score === null ? null : Number(s.qa_score),
-        ai_reasoning: (s as { ai_reasoning?: string | null }).ai_reasoning ?? null,
-        cv_file_path: (s as { cv_file_path?: string | null }).cv_file_path ?? null,
-        is_shortlisted: !!(s as { is_shortlisted?: boolean }).is_shortlisted,
-      })),
+      (subsData ?? []).map((s) => {
+        const row = s as Record<string, unknown>;
+        return {
+          ...s,
+          answers: Array.isArray(s.answers) ? (s.answers as string[]) : [],
+          qa_score: s.qa_score === null ? null : Number(s.qa_score),
+          cv_score:
+            row.cv_score === null || row.cv_score === undefined
+              ? null
+              : Number(row.cv_score),
+          cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
+          ai_reasoning: (row.ai_reasoning as string | null) ?? null,
+          cv_file_path: (row.cv_file_path as string | null) ?? null,
+          is_shortlisted: !!row.is_shortlisted,
+        } as Submission;
+      }),
     );
     setLoading(false);
   };
