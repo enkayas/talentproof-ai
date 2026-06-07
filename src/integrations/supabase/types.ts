@@ -53,6 +53,7 @@ export type Database = {
           answers: Json
           candidate_name: string
           created_at: string
+          cv_file_path: string | null
           cv_text: string | null
           email: string
           id: string
@@ -68,6 +69,7 @@ export type Database = {
           answers?: Json
           candidate_name: string
           created_at?: string
+          cv_file_path?: string | null
           cv_text?: string | null
           email: string
           id?: string
@@ -83,6 +85,7 @@ export type Database = {
           answers?: Json
           candidate_name?: string
           created_at?: string
+          cv_file_path?: string | null
           cv_text?: string | null
           email?: string
           id?: string
