@@ -66,6 +66,7 @@ export type Database = {
           job_id: string
           linkedin: string | null
           portfolio_link: string | null
+          qa_analysis: Json | null
           qa_score: number | null
           whatsapp: string | null
         }
@@ -84,6 +85,7 @@ export type Database = {
           job_id: string
           linkedin?: string | null
           portfolio_link?: string | null
+          qa_analysis?: Json | null
           qa_score?: number | null
           whatsapp?: string | null
         }
@@ -102,6 +104,7 @@ export type Database = {
           job_id?: string
           linkedin?: string | null
           portfolio_link?: string | null
+          qa_analysis?: Json | null
           qa_score?: number | null
           whatsapp?: string | null
         }

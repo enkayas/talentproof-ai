@@ -1,24 +1,49 @@
-## Problem
+## Goal
 
-The "Open Original CV PDF" button generates a signed URL like `https://pdyihlhdquplgsqutjmx.supabase.co/storage/v1/object/sign/...`. Many Chrome extensions (uBlock Origin, Privacy Badger, AdGuard, Brave Shields) and some corporate firewalls block requests to raw `*.supabase.co` hostnames, which triggers `ERR_BLOCKED_BY_CLIENT`. The PDF itself is fine — only the hostname is being filtered.
+Actually run the cynical-recruiter QA rubric against candidate answers and store its score + reasoning separately from the CV evaluation.
 
-## Fix: serve the PDF from our own domain
+## 1. Schema migration
+Add one nullable column to `submissions`:
+- `qa_analysis` JSONB — mirrors `cv_analysis`; will hold `{ final_score, analysis_reasoning }` on success or `{ error, analysis_reasoning, logged_at }` on fallback.
 
-Add an authenticated server route that streams the CV bytes back through the app's own origin, so the browser never sees a `supabase.co` URL.
+No other schema changes; `qa_score` already exists.
 
-### 1. New server route `src/routes/api/cv.$submissionId.ts`
-- `GET` handler.
-- Verify the caller's Supabase bearer token (read `Authorization` header, call `supabase.auth.getUser` against the publishable-key client) — must be a signed-in recruiter.
-- Look up the submission with `supabaseAdmin`, confirm the recruiter owns the parent job (`jobs.user_id === userId`), then `supabaseAdmin.storage.from("cv-resumes").download(cv_file_path)`.
-- Return the PDF bytes with `Content-Type: application/pdf` and `Content-Disposition: inline; filename="<candidate>.pdf"`. 401/403/404 on auth or ownership failures.
+## 2. `src/lib/score-submission.functions.ts` changes
 
-### 2. Update `OpenCvButton` in `src/routes/_authenticated/jobs.$jobId.tsx`
-- Stop calling `supabase.storage.createSignedUrl`.
-- On click: fetch `/api/cv/<submissionId>` with the user's `Authorization: Bearer <access_token>` header, turn the response into a `Blob`, then `window.open(URL.createObjectURL(blob))`. Revoke the object URL after a short timeout.
-- Keep existing loading/disabled states and toast on failure.
+### Replace the unused `SYSTEM_PROMPT` constant
+Rename to `QA_SYSTEM_PROMPT` and set its body verbatim to the cynical-recruiter rubric supplied by the user. Keep the CV prompt (`systemPrompt` built inside `runScoring`) untouched — the two rubrics stay fully isolated.
 
-### Why this works
-The browser only ever loads `https://<app-domain>/api/cv/...`, which extension blocklists don't touch. The service-role download happens server-side, and the route enforces recruiter ownership so it's no less secure than the previous signed URL.
+### Add a new `runQaScoring(job, sub)` helper
+- Pull `job.questions` (already fetched) and `sub.answers`.
+- If `answers` is empty or every entry is blank → return `{ ok: false, skipped: true }` and write `qa_score: null`, `qa_analysis: null`.
+- Otherwise format a transcript like:
+  ```
+  Q1: <question label>
+  A1: <answer>
 
-### Out of scope
-No schema changes, no edits to the candidate-facing upload flow, no changes to scoring logic.
+  Q2: ...
+  ```
+- POST to `https://ai.gateway.lovable.dev/v1/chat/completions` with `model: google/gemini-2.5-flash`, `messages: [{role:"system", content: QA_SYSTEM_PROMPT}, {role:"user", content: transcript}]`.
+- Parse `{ final_score, analysis_reasoning }`; clamp score 0–100; on any gateway/parse failure return fallback `{ final_score: 0, analysis_reasoning: "AI evaluation failed.", error: true }`.
+
+### Wire it into `runScoring`
+- Run CV scoring as today.
+- Run `runQaScoring` (sequential is fine; can be `Promise.all` with the CV call if we restructure, but sequential keeps the diff small).
+- Single `submissions` update writes:
+  - `qa_score` = QA final_score (or `null` when skipped)
+  - `qa_analysis` = `{ final_score, analysis_reasoning }` on success / fallback shape on error / `null` when skipped
+  - `cv_score`, `cv_analysis`, `ai_reasoning` — unchanged (CV-only)
+- Return value extends current shape with `qa: { score, reasoning, fallback }`.
+
+### Bug fix
+Stop the current `qa_score: safeResponse.cv_score` line — `qa_score` must come from QA, not CV.
+
+## 3. Out of scope
+- No UI changes. The dashboard already reads `qa_score` as "ANSWER SCORE" and will start showing the real value automatically. Rendering `qa_analysis` in the Screening Answers tab can come in a follow-up.
+- CV scoring logic, prompt, and storage are untouched.
+- Candidate-facing submission flow untouched.
+
+## Technical notes
+- Migration: `ALTER TABLE public.submissions ADD COLUMN qa_analysis jsonb;` — no GRANTs needed (column on existing table; RLS unchanged).
+- After the migration runs, `src/integrations/supabase/types.ts` regenerates; the new `qa_analysis` field becomes type-safe in the update call.
+- Truncate transcript at ~30k chars defensively before sending (each answer is already max 5000 chars × 50 answers cap, so this is a guard).
