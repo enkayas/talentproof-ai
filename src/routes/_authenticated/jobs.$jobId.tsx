@@ -46,6 +46,7 @@ type Submission = {
   answers: string[];
   portfolio_link: string | null;
   cv_text: string | null;
+  cv_file_path: string | null;
   qa_score: number | null;
   ai_reasoning: string | null;
   created_at: string;
