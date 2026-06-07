@@ -643,3 +643,198 @@ function CvDownloadButton({ path }: { path: string }) {
     </button>
   );
 }
+
+function CandidateDrawerTabs({
+  submission: s,
+  questions,
+  requireLink,
+  requireCv,
+}: {
+  submission: Submission;
+  questions: string[];
+  requireLink: boolean;
+  requireCv: boolean;
+}) {
+  const [tab, setTab] = useState<"answers" | "cv">("answers");
+  const analysis = s.cv_analysis ?? null;
+  const summary = analysis?.cv_summary ?? "";
+  const matches = Array.isArray(analysis?.key_matches) ? analysis!.key_matches! : [];
+  const cvLoading = s.cv_score === null;
+
+  return (
+    <div className="pl-4">
+      {/* Tab bar */}
+      <div className="inline-flex p-1 rounded-full bg-foreground/5 border border-border mb-5">
+        <button
+          onClick={() => setTab("answers")}
+          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            tab === "answers"
+              ? "bg-accent-purple text-white shadow"
+              : "text-foreground/60 hover:text-foreground"
+          }`}
+        >
+          Screening Answers
+        </button>
+        <button
+          onClick={() => setTab("cv")}
+          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            tab === "cv"
+              ? "bg-accent-purple text-white shadow"
+              : "text-foreground/60 hover:text-foreground"
+          }`}
+        >
+          CV Overview
+        </button>
+      </div>
+
+      {tab === "answers" && (
+        <div className="space-y-5">
+          {questions.map((q, i) => (
+            <div key={i}>
+              <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
+                Q{i + 1}
+              </p>
+              <p className="text-sm text-foreground/70 mb-2">{q}</p>
+              <p className="text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4">
+                {s.answers[i] || (
+                  <span className="text-foreground/40 italic">No answer</span>
+                )}
+              </p>
+            </div>
+          ))}
+          {requireLink && (
+            <div>
+              <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
+                Portfolio
+              </p>
+              {s.portfolio_link ? (
+                <a
+                  href={
+                    s.portfolio_link.startsWith("http")
+                      ? s.portfolio_link
+                      : `https://${s.portfolio_link}`
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent-purple hover:underline break-all"
+                >
+                  {s.portfolio_link}
+                </a>
+              ) : (
+                <span className="text-foreground/40 italic">—</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "cv" && (
+        <div className="space-y-5">
+          {/* Professional Profile */}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-accent-purple mb-2">
+              Professional Profile
+            </p>
+            {cvLoading ? (
+              <div className="bg-background/40 border border-border rounded-xl p-4">
+                <p className="text-foreground/50 italic text-sm inline-flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Generating CV summary…
+                </p>
+              </div>
+            ) : summary ? (
+              <blockquote className="relative bg-gradient-to-br from-accent-purple/10 to-background/40 border-l-4 border-accent-purple rounded-r-xl pl-5 pr-4 py-4 text-foreground/90 leading-relaxed text-[15px] italic">
+                {summary}
+              </blockquote>
+            ) : (
+              <p className="text-foreground/40 italic text-sm">No summary generated.</p>
+            )}
+          </div>
+
+          {/* Key Match Highlights */}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-accent-purple mb-2">
+              Key Match Highlights
+            </p>
+            {cvLoading ? (
+              <div className="space-y-2">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-4 w-full max-w-md rounded bg-foreground/5 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : matches.length > 0 ? (
+              <ul className="space-y-2">
+                {matches.map((m, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2.5 text-sm text-foreground/90 leading-relaxed"
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-accent-purple shrink-0 mt-0.5" />
+                    <span>{m}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-foreground/40 italic text-sm">
+                {analysis?.error
+                  ? "AI could not extract highlights for this CV."
+                  : "No highlights available."}
+              </p>
+            )}
+          </div>
+
+          {/* Open CV PDF */}
+          {requireCv && (
+            <div className="pt-2">
+              {s.cv_file_path ? (
+                <OpenCvButton path={s.cv_file_path} />
+              ) : s.cv_text ? (
+                <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
+                  {s.cv_text}
+                </pre>
+              ) : (
+                <span className="text-foreground/40 italic text-sm">
+                  No CV uploaded.
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OpenCvButton({ path }: { path: string }) {
+  const [loading, setLoading] = useState(false);
+  const openCv = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.storage
+      .from("cv-resumes")
+      .createSignedUrl(path, 60 * 10);
+    setLoading(false);
+    if (error || !data?.signedUrl) {
+      toast.error("Could not open resume file.");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+  return (
+    <button
+      onClick={openCv}
+      disabled={loading}
+      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent-purple hover:bg-accent-purple/90 text-white text-sm font-semibold shadow-lg shadow-accent-purple/20 transition-colors disabled:opacity-60"
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <FileText className="h-4 w-4" />
+      )}
+      Open Original CV PDF
+      <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+    </button>
+  );
+}
