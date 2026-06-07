@@ -648,29 +648,6 @@ function ShortlistHub() {
   );
 }
 
-function ScorePill({ score }: { score: number | null }) {
-  if (score === null) {
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-slate-800/60 text-slate-300 border border-slate-700/60">
-        Pending
-      </span>
-    );
-  }
-  const s = Math.round(score);
-  const tone =
-    s >= 80
-      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800/50"
-      : s >= 50
-      ? "bg-amber-950/40 text-amber-400 border-amber-800/50"
-      : "bg-rose-950/40 text-rose-400 border-rose-800/50";
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums border ${tone}`}
-    >
-      {s}/100
-    </span>
-  );
-}
 
 function ShortlistCandidateCard({ c }: { c: ShortlistRow }) {
   const waDigits = (c.whatsapp ?? "").replace(/[^\d]/g, "");
