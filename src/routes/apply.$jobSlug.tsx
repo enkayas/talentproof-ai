@@ -247,6 +247,29 @@ function ApplyPage() {
     );
   }
 
+  if (fetchError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 mb-6">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+          </div>
+          <h1 className="font-serif text-3xl text-foreground mb-3">
+            Couldn't load this application
+          </h1>
+          <p className="text-muted-foreground mb-6 break-words">{fetchError}</p>
+          <button
+            onClick={() => setReloadKey((k) => k + 1)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (notFound || !job) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-6">
