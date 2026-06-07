@@ -150,17 +150,17 @@ CRITICAL: Do not include any negative feedback, weaknesses, or missing-gap array
     if (!res.ok) {
       const errBody = await res.text();
       console.error("[scoreSubmission] gateway error", res.status, errBody);
-      return { ok: false as const, reason: `gateway-${res.status}` };
+      throw new Error(`gateway-${res.status}`);
     }
 
     const json = await res.json();
     const content: string = json?.choices?.[0]?.message?.content ?? "";
     const match = content.match(/\{[\s\S]*\}/);
-    if (!match) return { ok: false as const, reason: "no-json" };
+    if (!match) throw new Error("no-json");
 
     const parsed = JSON.parse(match[0]);
     const score = Number(parsed?.cv_score);
-    if (!Number.isFinite(score)) return { ok: false as const, reason: "bad-score" };
+    if (!Number.isFinite(score)) throw new Error("bad-score");
 
     aiResponse = {
       cv_score: Math.max(0, Math.min(100, Math.round(score))),
