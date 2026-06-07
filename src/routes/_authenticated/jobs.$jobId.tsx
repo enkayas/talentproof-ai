@@ -564,15 +564,20 @@ function SubmissionsPage() {
                     </div>
 
                     {open && (
-                      <div className="mt-5 space-y-5 pl-0 md:pl-2 border-l-2 border-accent-purple/30 md:ml-0">
-                        {/* AI Evaluation Report */}
-                        <div className="pl-4">
+                      <div className="mt-5 pl-0 md:pl-2 border-l-2 border-accent-purple/30">
+                        {/* AI Evaluation Report (always visible above the tabs) */}
+                        <div className="pl-4 mb-5">
                           <div className="flex items-center justify-between gap-3 mb-2">
                             <p className="text-xs uppercase tracking-wider text-accent-purple inline-flex items-center gap-1.5">
                               <Sparkles className="h-3 w-3" />
                               AI Evaluation Report
                             </p>
-                            <ScoreBadge score={s.qa_score} />
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] uppercase tracking-wider text-foreground/40">Answers</span>
+                              <ScoreBadge score={s.qa_score} />
+                              <span className="text-[10px] uppercase tracking-wider text-foreground/40 ml-2">CV</span>
+                              <ScoreBadge score={s.cv_score} />
+                            </div>
                           </div>
                           <div className="bg-gradient-to-br from-accent-purple/10 to-background/40 border border-accent-purple/20 rounded-xl p-4">
                             {s.ai_reasoning ? (
@@ -588,60 +593,12 @@ function SubmissionsPage() {
                           </div>
                         </div>
 
-                        {job.questions.map((q, i) => (
-                          <div key={i} className="pl-4">
-                            <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
-                              Q{i + 1}
-                            </p>
-                            <p className="text-sm text-foreground/70 mb-2">{q}</p>
-                            <p className="text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4">
-                              {s.answers[i] || (
-                                <span className="text-foreground/40 italic">
-                                  No answer
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        ))}
-                        {job.require_link && (
-                          <div className="pl-4">
-                            <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
-                              Portfolio
-                            </p>
-                            {s.portfolio_link ? (
-                              <a
-                                href={
-                                  s.portfolio_link.startsWith("http")
-                                    ? s.portfolio_link
-                                    : `https://${s.portfolio_link}`
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-accent-purple hover:underline break-all"
-                              >
-                                {s.portfolio_link}
-                              </a>
-                            ) : (
-                              <span className="text-foreground/40 italic">—</span>
-                            )}
-                          </div>
-                        )}
-                        {job.require_cv && (
-                          <div className="pl-4">
-                            <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
-                              CV / Resume
-                            </p>
-                            {s.cv_file_path ? (
-                              <CvDownloadButton path={s.cv_file_path} />
-                            ) : s.cv_text ? (
-                              <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
-                                {s.cv_text}
-                              </pre>
-                            ) : (
-                              <span className="text-foreground/40 italic">—</span>
-                            )}
-                          </div>
-                        )}
+                        <CandidateDrawerTabs
+                          submission={s}
+                          questions={job.questions}
+                          requireLink={job.require_link}
+                          requireCv={job.require_cv}
+                        />
                       </div>
                     )}
                   </div>
