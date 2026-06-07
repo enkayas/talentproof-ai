@@ -501,7 +501,7 @@ function SubmissionsPage() {
                           </a>
                         )}
                       </div>
-                      <div className="md:col-span-3 text-sm text-foreground/80 inline-flex items-center gap-2 min-w-0">
+                      <div className="md:col-span-2 text-sm text-foreground/80 inline-flex items-center gap-2 min-w-0">
                         <Mail className="h-3.5 w-3.5 text-foreground/40 shrink-0" />
                         <a href={`mailto:${s.email}`} className="truncate hover:text-foreground">
                           {s.email}
@@ -511,10 +511,9 @@ function SubmissionsPage() {
                         <Phone className="h-3.5 w-3.5 text-foreground/40 shrink-0" />
                         {s.whatsapp || "—"}
                       </div>
-                      <div className="md:col-span-2 text-xs text-muted-foreground tabular-nums">
+                      <div className="md:col-span-1 text-xs text-muted-foreground tabular-nums">
                         {new Date(s.created_at).toLocaleString(undefined, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
+                          dateStyle: "short",
                         })}
                       </div>
                       <div className="md:col-span-2 flex items-center gap-2">
