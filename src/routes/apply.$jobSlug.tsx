@@ -11,6 +11,7 @@ import {
   UploadCloud,
   FileText,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,6 +67,8 @@ function ApplyPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loadingJob, setLoadingJob] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [submissionCount, setSubmissionCount] = useState(0);
 
   // form state
@@ -74,6 +77,7 @@ function ApplyPage() {
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [linkedin, setLinkedin] = useState("");
+  const [touched, setTouched] = useState<{ name?: boolean; email?: boolean; whatsapp?: boolean }>({});
   const [answers, setAnswers] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -83,45 +87,62 @@ function ApplyPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoadingJob(true);
+    setFetchError(null);
+    setNotFound(false);
     (async () => {
-      const [{ data, error }, { count }] = await Promise.all([
-        supabase
-          .from("jobs")
-          .select("id, job_title, questions, require_link, require_cv, status")
-          .eq("id", jobSlug)
-          .maybeSingle(),
-        supabase
-          .from("submissions")
-          .select("id", { count: "exact", head: true })
-          .eq("job_id", jobSlug),
-      ]);
+      try {
+        const [jobRes, countRes] = await Promise.all([
+          supabase
+            .from("jobs")
+            .select("id, job_title, questions, require_link, require_cv, status")
+            .eq("id", jobSlug)
+            .maybeSingle(),
+          supabase
+            .from("submissions")
+            .select("id", { count: "exact", head: true })
+            .eq("job_id", jobSlug),
+        ]);
 
-      if (cancelled) return;
-      if (error || !data) {
-        setNotFound(true);
-        setLoadingJob(false);
-        return;
+        if (cancelled) return;
+        if (jobRes.error) throw jobRes.error;
+        if (countRes.error) throw countRes.error;
+        if (!jobRes.data) {
+          setNotFound(true);
+          setLoadingJob(false);
+          return;
+        }
+        const data = jobRes.data;
+        const normalized: Job = {
+          id: data.id,
+          job_title: data.job_title,
+          questions: Array.isArray(data.questions)
+            ? (data.questions as string[])
+            : [],
+          require_link: !!data.require_link,
+          require_cv: !!data.require_cv,
+          status: (data as { status?: string }).status ?? "live",
+        };
+
+        setJob(normalized);
+        setSubmissionCount(countRes.count ?? 0);
+        setAnswers(new Array(normalized.questions.length).fill(""));
+      } catch (e) {
+        if (!cancelled) {
+          setFetchError(
+            e instanceof Error
+              ? e.message
+              : "Couldn't load this application. Please check your connection.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingJob(false);
       }
-      const normalized: Job = {
-        id: data.id,
-        job_title: data.job_title,
-        questions: Array.isArray(data.questions)
-          ? (data.questions as string[])
-          : [],
-        require_link: !!data.require_link,
-        require_cv: !!data.require_cv,
-        status: (data as { status?: string }).status ?? "live",
-      };
-
-      setJob(normalized);
-      setSubmissionCount(count ?? 0);
-      setAnswers(new Array(normalized.questions.length).fill(""));
-      setLoadingJob(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [jobSlug]);
+  }, [jobSlug, reloadKey]);
 
 
   const questionsCount = job?.questions.length ?? 0;
