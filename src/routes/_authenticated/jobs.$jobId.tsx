@@ -250,6 +250,9 @@ function SubmissionsPage() {
     try {
       await scoreSubmission({ data: { submissionId: id } });
       await load();
+    } catch {
+      toast.error("Re-scoring failed. Please try again.");
+      await load();
     } finally {
       setRescoring((prev) => {
         const next = new Set(prev);
@@ -274,53 +277,86 @@ function SubmissionsPage() {
 
   const exportCsv = () => {
     if (!job) return;
-    const headers = [
-      "Submitted At",
-      "Score",
-      "Name",
-      "Email",
-      "WhatsApp",
-      "LinkedIn",
-      ...job.questions.map((q, i) => `Q${i + 1}: ${q}`),
-      ...(job.require_link ? ["Portfolio Link"] : []),
-      ...(job.require_cv ? ["CV Text"] : []),
-      "AI Reasoning",
-    ];
-    const rows = subs.map((s) => [
-      new Date(s.created_at).toISOString(),
-      s.qa_score === null ? "" : String(Math.round(s.qa_score)),
-      s.candidate_name,
-      s.email,
-      s.whatsapp ?? "",
-      s.linkedin ?? "",
-      ...job.questions.map((_, i) => s.answers[i] ?? ""),
-      ...(job.require_link ? [s.portfolio_link ?? ""] : []),
-      ...(job.require_cv ? [s.cv_text ?? ""] : []),
-      s.ai_reasoning ?? "",
-    ]);
-    const csv = [headers, ...rows]
-      .map((row) =>
-        row
-          .map((cell) => {
-            const v = String(cell ?? "");
-            return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-          })
-          .join(","),
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${job.id}-submissions.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const headers = [
+        "Submitted At",
+        "Score",
+        "Name",
+        "Email",
+        "WhatsApp",
+        "LinkedIn",
+        ...job.questions.map((q, i) => `Q${i + 1}: ${q}`),
+        ...(job.require_link ? ["Portfolio Link"] : []),
+        ...(job.require_cv ? ["CV Text"] : []),
+        "AI Reasoning",
+      ];
+      const rows = subs.map((s) => [
+        new Date(s.created_at).toISOString(),
+        s.qa_score === null ? "" : String(Math.round(s.qa_score)),
+        s.candidate_name,
+        s.email,
+        s.whatsapp ?? "",
+        s.linkedin ?? "",
+        ...job.questions.map((_, i) => s.answers[i] ?? ""),
+        ...(job.require_link ? [s.portfolio_link ?? ""] : []),
+        ...(job.require_cv ? [s.cv_text ?? ""] : []),
+        s.ai_reasoning ?? "",
+      ]);
+      const csv = [headers, ...rows]
+        .map((row) =>
+          row
+            .map((cell) => {
+              const v = String(cell ?? "");
+              return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+            })
+            .join(","),
+        )
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${job.id}-submissions.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Could not export CSV. Please try again.");
+    }
   };
 
   if (loading) {
+    return <SubmissionsSkeleton />;
+  }
+
+  if (loadError) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-accent-purple" />
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="max-w-md text-center bg-card border border-destructive/30 rounded-2xl p-8">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 mb-3">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+          </div>
+          <h1 className="font-serif text-2xl mb-2">Couldn't load submissions</h1>
+          <p className="text-sm text-muted-foreground mb-5 break-words">{loadError}</p>
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => {
+                setLoading(true);
+                load();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border text-sm font-medium hover:bg-foreground/5"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
