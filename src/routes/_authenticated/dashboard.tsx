@@ -751,3 +751,54 @@ function ShortlistCandidateCard({ c }: { c: ShortlistRow }) {
   );
 }
 
+
+function JobCardSkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="bg-card border border-border rounded-2xl p-6 flex flex-col"
+        >
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <Skeleton className="h-6 w-2/3" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-1/2 mb-3" />
+          <Skeleton className="h-1.5 w-full mb-6" />
+          <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
+            <Skeleton className="h-9 w-9 rounded-full" />
+            <Skeleton className="h-9 w-32 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LoadErrorPanel({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="bg-card border border-destructive/30 rounded-2xl p-8 text-center">
+      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 mb-3">
+        <AlertCircle className="h-5 w-5 text-destructive" />
+      </div>
+      <p className="text-foreground font-medium mb-1">Couldn't load this data</p>
+      <p className="text-sm text-muted-foreground mb-5 max-w-md mx-auto break-words">
+        {message}
+      </p>
+      <button
+        onClick={onRetry}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Try again
+      </button>
+    </div>
+  );
+}
