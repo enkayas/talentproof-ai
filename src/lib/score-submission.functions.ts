@@ -148,6 +148,7 @@ export const submitApplication = createServerFn({ method: "POST" })
         answers: data.answers,
         portfolio_link: data.portfolio_link ?? null,
         cv_text: data.cv_text ?? null,
+        cv_file_path: data.cv_file_path ?? null,
         qa_score: null,
       })
       .select("id")
