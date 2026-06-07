@@ -256,10 +256,29 @@ CRITICAL: Do not include any negative feedback, weaknesses, or missing-gap array
         cv_summary: safeResponse.cv_summary,
       };
 
+  // 5. Run the QA (answers) rubric — completely separate from CV scoring.
+  const qa = await runQaScoring(job?.questions ?? [], sub.answers ?? [], key);
+
+  const qa_score = qa.skipped ? null : qa.final_score;
+  const qa_analysis = qa.skipped
+    ? null
+    : qa.fallback
+      ? {
+          error: "ai-parse-or-call-failed",
+          final_score: qa.final_score,
+          analysis_reasoning: qa.analysis_reasoning,
+          logged_at: new Date().toISOString(),
+        }
+      : {
+          final_score: qa.final_score,
+          analysis_reasoning: qa.analysis_reasoning,
+        };
+
   const { error: updErr } = await supabaseAdmin
     .from("submissions")
     .update({
-      qa_score: safeResponse.cv_score,
+      qa_score,
+      qa_analysis,
       cv_score: safeResponse.cv_score,
       cv_analysis: cvAnalysis,
       ai_reasoning: reasoningBlock,
@@ -271,8 +290,21 @@ CRITICAL: Do not include any negative feedback, weaknesses, or missing-gap array
     return { ok: false as const, reason: "update-failed" };
   }
 
-  return { ok: true as const, ...safeResponse, fallback: isFallback };
+  return {
+    ok: true as const,
+    ...safeResponse,
+    fallback: isFallback,
+    qa: qa.skipped
+      ? { skipped: true as const }
+      : {
+          skipped: false as const,
+          score: qa.final_score,
+          reasoning: qa.analysis_reasoning,
+          fallback: qa.fallback,
+        },
+  };
 }
+
 
 export const scoreSubmission = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => Input.parse(d))
