@@ -1,69 +1,57 @@
-# AI Rubric Scoring for Candidate Submissions
 
-Add an AI-evaluated score + reasoning for every candidate submission, surface it in the submissions table with colored badges, and show the reasoning inside the existing "View answers" drawer.
+# CV Pipeline Scaffolding (Mock AI Response)
 
-## 1. Database
+Goal: prepare the data pipeline that a future AI call will use. No scoring logic yet — just fetch the inputs, log them, return a hardcoded mock.
 
-Migration on `public.submissions`:
-- Add `ai_reasoning text` (nullable).
-- `qa_score` already exists (numeric, nullable) — reuse it. NULL = still evaluating.
-- No new RLS needed; existing "Job owners can view their submissions" already covers the new column.
+## 1. Schema change
 
-## 2. Server function: score a submission with Lovable AI
+Add a `job_description` column to `jobs`:
 
-New file `src/lib/score-submission.functions.ts` exposing `scoreSubmission({ submissionId })`:
-- Uses `supabaseAdmin` (loaded inside the handler) so it can read the submission + parent job and write back `qa_score` / `ai_reasoning` regardless of who triggered it.
-- Builds a rubric prompt from the job's `questions[]` and the candidate's `answers[]` (plus portfolio link / CV text if present).
-- Calls Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1/chat/completions`) using `LOVABLE_API_KEY` and `google/gemini-2.5-flash` with a JSON response shape: `{ score: 0–100, reasoning: "2 short sentences" }`.
-- Rubric: penalises generic / AI-sounding fluff, rewards specific examples, role relevance, and clarity.
-- Writes the result back to the submissions row.
-- Idempotent — if `qa_score` is already set, returns early (so re-runs don't spend tokens).
+- `job_description text` — nullable, no default (existing rows stay NULL).
+- No RLS changes needed; existing "Anyone can read jobs" / owner policies already cover the new column.
 
-## 3. Trigger scoring after a candidate submits
+This is a separate migration tool call; the rest of the work follows after it's approved.
 
-In `src/routes/apply.$jobSlug.tsx`, after the existing `submissions.insert(...)` succeeds:
-- Fire-and-forget call to `scoreSubmission({ submissionId })` (don't block the candidate's thank-you screen).
-- Failures are swallowed; the row simply stays NULL and the dashboard keeps showing "Evaluating…".
+## 2. Refactor `runScoring` in `src/lib/score-submission.functions.ts`
 
-## 4. Submissions table UI (`src/routes/_authenticated/jobs.$jobId.tsx`)
+Inside the existing `runScoring(submissionId)` (already used by both `scoreSubmission` and `submitApplication`), replace the Lovable AI call with this scaffolding:
 
-Type + query:
-- Add `ai_reasoning: string | null` to the `Submission` type.
-- Include `qa_score, ai_reasoning` in the `.select(...)`.
+1. Load submission row (already done) — also keep `cv_file_path` in the select.
+2. Load job row — extend select to `job_title, job_description, questions`.
+3. If `cv_file_path` is present:
+   - `supabaseAdmin.storage.from("cv-resumes").download(cv_file_path)`
+   - Convert the returned `Blob` to an `ArrayBuffer`, then to a Node `Buffer`, then `.toString("base64")` → `base64Pdf`.
+   - On download error: log and continue with `base64Pdf = ""`.
+4. `console.log` for verification:
+   - `job_title`
+   - `job_description` (or `"(none)"` when null)
+   - `base64Pdf.slice(0, 50)`
+5. Build and return the mock response, and persist it to the row so the recruiter UI shows something:
+   ```ts
+   const mockAiResponse = {
+     cv_score: 70,
+     key_matches: ["Placeholder match"],
+     cv_summary: "Placeholder summary",
+   };
+   ```
+   - Write `qa_score = mockAiResponse.cv_score` and `ai_reasoning = mockAiResponse.cv_summary` to `submissions` (keeps the existing leaderboard / "Evaluating…" badge behavior working end-to-end).
+   - Return `{ ok: true, mockAiResponse }` from the handler.
 
-Header grid — change from `grid-cols-12` to a new split that inserts SCORE between SUBMITTED and ANSWERS:
-- Candidate (3) · Email (3) · WhatsApp (2) · Submitted (2) · **Score (1)** · Answers (1, right-aligned).
+Idempotency guard (`if qa_score is set, return early`) stays as-is.
 
-New `<ScoreBadge score={qa_score} />` component (inline in the file):
-- `null` → slate chip with `Loader2` spinning + "Evaluating…", `animate-pulse`, classes `bg-slate-800/60 text-slate-300 border border-slate-700/60`.
-- `>= 80` → `bg-emerald-950/40 text-emerald-400 border border-emerald-800/50`, label `{score}/100`.
-- `50–79` → `bg-amber-950/40 text-amber-400 border border-amber-800/50`, label `{score}/100`.
-- `< 50` → `bg-rose-950/40 text-rose-400 border border-rose-800/50`, label `{score}/100`.
-- All rounded-full, `px-2.5 py-1`, `text-xs font-medium tabular-nums`, consistent with the existing purple/slate aesthetic.
+## 3. Out of scope (explicit)
 
-Score is rendered as `Math.round(qa_score)`.
-
-Expanded answers panel — add a new block above the question list:
-- Container titled **"AI Evaluation Report"** with the same `bg-background/40 border border-border rounded-xl p-4` styling as the existing answer cards.
-- Heading uses the same `text-xs uppercase tracking-wider text-accent-purple` pattern as Q1/Q2 labels for consistency.
-- Body renders `ai_reasoning` (plain text, `whitespace-pre-wrap`). If null, shows "Evaluation in progress…" in muted italic.
-- Inline mini score badge (same component) next to the title so the rubric verdict is visible at a glance.
-
-CSV export — add a `Score` column right after `Submitted At` so exports include it too.
-
-## 5. Backfill (optional, manual)
-
-After deploy, existing rows have `qa_score = null` and will sit on "Evaluating…" forever. Add a small "Re-score" button (lightning icon) on each row that calls `scoreSubmission` on demand. No bulk job needed.
+- No Lovable AI / Gemini call.
+- No real OCR or text extraction.
+- No new `key_matches` / `cv_summary` columns — mock object is returned in-memory only; only `qa_score` + `ai_reasoning` are persisted (already exist).
+- No UI changes in `jobs.$jobId.tsx`.
+- No changes to `submitApplication`'s insert payload, the apply form, or storage policies.
 
 ## Files touched
 
-- new: `supabase/migrations/<ts>_add_ai_reasoning.sql`
-- new: `src/lib/score-submission.functions.ts`
-- edit: `src/routes/apply.$jobSlug.tsx` (fire-and-forget scoring after insert)
-- edit: `src/routes/_authenticated/jobs.$jobId.tsx` (column, badge, AI Evaluation Report, CSV, re-score button)
+- new: `supabase/migrations/<ts>_add_job_description.sql`
+- edit: `src/lib/score-submission.functions.ts` (replace AI call inside `runScoring` with download + log + mock return)
 
-## Out of scope
+## Verification
 
-- Custom per-job rubrics (uses one generic rubric).
-- Re-scoring all historical rows automatically.
-- Streaming reasoning / realtime score updates (recruiter refreshes the page to see results — typically <5s after submission).
+After implementing, submit a test application with a PDF and check server function logs (`stack_modern--server-function-logs`) for the three log lines plus a `qa_score = 70` row in `submissions`.
