@@ -123,7 +123,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      jobs_with_counts: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          job_title: string
+          status: string
+          submission_count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
