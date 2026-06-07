@@ -383,6 +383,12 @@ function ApplyPage() {
                 value={name}
                 onChange={setName}
                 placeholder="Ada Lovelace"
+                onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                error={
+                  touched.name && name.trim().length === 0
+                    ? "Please enter your name."
+                    : null
+                }
               />
               <Field
                 label="Email Address"
@@ -390,6 +396,12 @@ function ApplyPage() {
                 onChange={setEmail}
                 placeholder="you@email.com"
                 type="email"
+                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+                error={
+                  touched.email && !/^\S+@\S+\.\S+$/.test(email.trim())
+                    ? "Enter a valid email address."
+                    : null
+                }
               />
               <Field
                 label="WhatsApp Number"
@@ -397,6 +409,12 @@ function ApplyPage() {
                 onChange={setWhatsapp}
                 placeholder="+91 98765 43210"
                 type="tel"
+                onBlur={() => setTouched((t) => ({ ...t, whatsapp: true }))}
+                error={
+                  touched.whatsapp && whatsapp.trim().length === 0
+                    ? "WhatsApp number is required."
+                    : null
+                }
               />
               <Field
                 label="LinkedIn Profile URL"
