@@ -436,22 +436,12 @@ function ApplyPage() {
               )}
 
               {job.require_cv && (
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">
-                    Paste Raw Resume Text
-                  </label>
-                  <p className="text-xs text-foreground/50 mb-3">
-                    We evaluate on capability first. Paste your resume text
-                    directly here to bypass rigid ATS layout bugs.
-                  </p>
-                  <textarea
-                    value={cvText}
-                    onChange={(e) => setCvText(e.target.value)}
-                    rows={10}
-                    placeholder="Paste your resume here…"
-                    className="w-full bg-card border border-border rounded-2xl p-5 text-base outline-none focus:border-accent-purple focus:ring-2 focus:ring-accent-purple/20 transition-all placeholder:text-foreground/40 resize-none"
-                  />
-                </div>
+                <CvUpload
+                  file={cvFile}
+                  onFile={setCvFile}
+                  uploading={cvUploading}
+                  progress={cvUploadProgress}
+                />
               )}
             </div>
 
