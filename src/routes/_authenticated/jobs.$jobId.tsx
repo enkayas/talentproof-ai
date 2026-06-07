@@ -688,7 +688,7 @@ function SubmissionsPage() {
                           />
                         </button>
                         <button
-                          onClick={() => setExpanded(open ? null : s.id)}
+                          onClick={() => handleToggleExpand(s.id)}
                           className="text-xs font-medium text-accent-purple hover:underline whitespace-nowrap"
                         >
                           {open ? "Hide" : "View"} answers
@@ -713,14 +713,16 @@ function SubmissionsPage() {
                             </div>
                           </div>
                           <div className="bg-gradient-to-br from-accent-purple/10 to-background/40 border border-accent-purple/20 rounded-xl p-4">
-                            {s.ai_reasoning ? (
+                            {s.details?.ai_reasoning ? (
                               <p className="text-foreground/85 whitespace-pre-wrap leading-relaxed text-sm">
-                                {s.ai_reasoning}
+                                {s.details.ai_reasoning}
                               </p>
                             ) : (
                               <p className="text-foreground/50 italic text-sm inline-flex items-center gap-2">
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                Evaluation in progress…
+                                {s.detailsLoading
+                                  ? "Loading evaluation…"
+                                  : "Evaluation in progress…"}
                               </p>
                             )}
                           </div>
@@ -757,10 +759,18 @@ function CandidateDrawerTabs({
   requireCv: boolean;
 }) {
   const [tab, setTab] = useState<"answers" | "cv">("answers");
-  const analysis = s.cv_analysis ?? null;
+  const details = s.details;
+  const detailsLoading = s.detailsLoading || !details;
+  const answers = details?.answers ?? [];
+  const portfolioLink = details?.portfolio_link ?? null;
+  const cvText = details?.cv_text ?? null;
+  const cvFilePath = details?.cv_file_path ?? null;
+  const analysis = details?.cv_analysis ?? null;
   const summary = analysis?.cv_summary ?? "";
-  const matches = Array.isArray(analysis?.key_matches) ? analysis!.key_matches! : [];
-  const cvLoading = s.cv_score === null;
+  const matches: string[] = Array.isArray(analysis?.key_matches)
+    ? (analysis!.key_matches as string[])
+    : [];
+  const cvLoading = detailsLoading || s.cv_score === null;
 
   return (
     <div className="pl-4">
@@ -788,6 +798,10 @@ function CandidateDrawerTabs({
         </button>
       </div>
 
+      {s.detailsError && (
+        <p className="text-sm text-destructive mb-4">{s.detailsError}</p>
+      )}
+
       {tab === "answers" && (
         <div className="space-y-5">
           {questions.map((q, i) => (
@@ -797,8 +811,15 @@ function CandidateDrawerTabs({
               </p>
               <p className="text-sm text-foreground/70 mb-2">{q}</p>
               <p className="text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4">
-                {s.answers[i] || (
-                  <span className="text-foreground/40 italic">No answer</span>
+                {detailsLoading ? (
+                  <span className="text-foreground/40 italic inline-flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading…
+                  </span>
+                ) : (
+                  answers[i] || (
+                    <span className="text-foreground/40 italic">No answer</span>
+                  )
                 )}
               </p>
             </div>
@@ -808,18 +829,18 @@ function CandidateDrawerTabs({
               <p className="text-xs uppercase tracking-wider text-accent-purple mb-1.5">
                 Portfolio
               </p>
-              {s.portfolio_link ? (
+              {portfolioLink ? (
                 <a
                   href={
-                    s.portfolio_link.startsWith("http")
-                      ? s.portfolio_link
-                      : `https://${s.portfolio_link}`
+                    portfolioLink.startsWith("http")
+                      ? portfolioLink
+                      : `https://${portfolioLink}`
                   }
                   target="_blank"
                   rel="noreferrer"
                   className="text-accent-purple hover:underline break-all"
                 >
-                  {s.portfolio_link}
+                  {portfolioLink}
                 </a>
               ) : (
                 <span className="text-foreground/40 italic">—</span>
@@ -868,7 +889,7 @@ function CandidateDrawerTabs({
               </div>
             ) : matches.length > 0 ? (
               <ul className="space-y-2">
-                {matches.map((m, i) => (
+                {matches.map((m: string, i: number) => (
                   <li
                     key={i}
                     className="flex items-start gap-2.5 text-sm text-foreground/90 leading-relaxed"
@@ -890,12 +911,13 @@ function CandidateDrawerTabs({
           {/* Open CV PDF */}
           {requireCv && (
             <div className="pt-2">
-              {s.cv_file_path ? (
+              {detailsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-foreground/40" />
+              ) : cvFilePath ? (
                 <OpenCvButton submissionId={s.id} />
-
-              ) : s.cv_text ? (
+              ) : cvText ? (
                 <pre className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-background/40 border border-border rounded-xl p-4 font-sans">
-                  {s.cv_text}
+                  {cvText}
                 </pre>
               ) : (
                 <span className="text-foreground/40 italic text-sm">
