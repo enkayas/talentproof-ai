@@ -15,35 +15,93 @@ const SubmitInput = z.object({
   cv_file_path: z.string().max(500).nullable().optional(),
 });
 
-const SYSTEM_PROMPT = `You are a deterministic mathematical scoring engine designed to evaluate candidate text answers. You must calculate a final integer score out of 100 based strictly on the three quantitative formulas below. Do not use holistic impressions. Treat the evaluation with extreme statistical rigor.
+const QA_SYSTEM_PROMPT = `You are a cynical, elite recruiter evaluating candidates for a entry-level professional role. Review the candidate's text answers strictly against the provided prompt using this 100-point rubric. Be hyper-critical. 1. Depth & Execution Strategy (40 pts): Award points only if they provide a concrete, step-by-step practical action plan. Give 0-15 if it is generic textbook theory. 2. Authenticity & Structure (30 pts): Deduct 20 points immediately if the text shows clear signatures of being generated or structured by an AI assistant (e.g., overly formal introductions, perfect bullet points introduced by clean alliterative bold titles, robotic summary transitions). Reward natural human tone. 3. Value Density (30 pts): Grade how much substance is delivered. Deduct points heavily for corporate fluff, padding, or repeating the question. Calculate the final combined score out of 100. Return your evaluation strictly as a structured JSON object with two fields: { "final_score": number, "analysis_reasoning": "A concise 2-sentence summary explaining where they lost points (e.g., AI-assisted formatting flag, or lack of depth)." }
 
-1. CALCULATE DEPTH SCORE (S_depth, Max 40):
-- Count the number of unique, actionable execution steps or real-world practical strategies provided (Variable E).
-- Count the number of specific contextual constraints, legal clauses, operational risks, or parameters acknowledged (Variable C).
-- Compute using the formula: S_depth = Min(40, (E * 8) + (C * 6)).
-- CRITICAL EXCEPTION: If the candidate provides zero active execution strategies (E = 0) and only defines textbook terms, completely bypass the formula and force cap S_depth to a maximum of 10.
+Return strictly clean JSON only — no markdown fences, no prose wrapping.`;
 
-2. CALCULATE AUTHENTICITY SCORE (S_auth, Max 30):
-- Start with a base score of 30. Apply the following negative point modifiers cumulatively:
-  * Deduct 15 points immediately if the text uses perfectly symmetric layout blocks where every paragraph/bullet point is prefaced with a bold structural title header (e.g., '**Title:** text').
-  * Deduct 5 points for every structural boilerplate framing wrapper found (e.g., 'In conclusion', 'It is vital to analyze', 'Let us look at').
-  * Deduct 3 points for every unique high-frequency LLM buzzword present: delve, testament, leverage, tapestry, underscore, paramount, bespoke.
-- Compute using the formula: S_auth = Max(0, 30 - Total_AI_Penalties).
+type QaResult =
+  | { skipped: true }
+  | { skipped: false; final_score: number; analysis_reasoning: string; fallback: boolean };
 
-3. CALCULATE CLARITY & CONSTRAINT SCORE (S_logic, Max 30):
-- Let W be the total word count. If W > 150, calculate a word penalty: P_words = (W - 150) * 2. If W <= 150, P_words = 0.
-- Let A be a binary variable: A = 1 if the core question is answered directly; A = 0 if the response evades the question.
-- Let I be the Information Density coefficient evaluated on a strict scale from 0.1 (all fluff/jargon) to 1.0 (pure concise insight).
-- Compute using the formula: S_logic = Max(0, (30 * I * A) - P_words).
+async function runQaScoring(
+  questions: unknown,
+  answers: unknown,
+  apiKey: string,
+): Promise<QaResult> {
+  const ansArr: string[] = Array.isArray(answers)
+    ? (answers as unknown[]).map((a) => String(a ?? "").trim())
+    : [];
+  if (ansArr.length === 0 || ansArr.every((a) => a.length === 0)) {
+    return { skipped: true };
+  }
 
-4. FINAL COMBINATION & OUTPUT:
-- Sum the components: Final_Score = S_depth + S_auth + S_logic.
-- Ensure high mathematical variance; do not cluster scores around the 70-80 average range. High-fluff or AI-copied text should drop below 50 naturally through penalties.
+  const qArr: string[] = Array.isArray(questions)
+    ? (questions as unknown[]).map((q) => {
+        if (typeof q === "string") return q;
+        if (q && typeof q === "object") {
+          const obj = q as Record<string, unknown>;
+          return String(obj.label ?? obj.text ?? obj.question ?? obj.prompt ?? "");
+        }
+        return "";
+      })
+    : [];
 
-Return the final payload strictly as a flat JSON object:
-{"final_score": <integer>, "analysis_reasoning": "<concise 2-sentence breakdown detailing the math>"}
+  const lines: string[] = [];
+  const total = Math.max(qArr.length, ansArr.length);
+  for (let i = 0; i < total; i++) {
+    lines.push(`Q${i + 1}: ${qArr[i] ?? "(no question text)"}`);
+    lines.push(`A${i + 1}: ${ansArr[i] ?? "(no answer)"}`);
+    lines.push("");
+  }
+  const transcript = lines.join("\n").slice(0, 30000);
 
-No prose, no markdown fences.`;
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: QA_SYSTEM_PROMPT },
+          { role: "user", content: transcript },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("[scoreSubmission][qa] gateway error", res.status, body);
+      throw new Error(`qa-gateway-${res.status}`);
+    }
+
+    const json = await res.json();
+    const content: string = json?.choices?.[0]?.message?.content ?? "";
+    const match = content.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("qa-no-json");
+    const parsed = JSON.parse(match[0]);
+    const score = Number(parsed?.final_score);
+    if (!Number.isFinite(score)) throw new Error("qa-bad-score");
+
+    return {
+      skipped: false,
+      final_score: Math.max(0, Math.min(100, Math.round(score))),
+      analysis_reasoning: String(parsed?.analysis_reasoning ?? "").slice(0, 1000),
+      fallback: false,
+    };
+  } catch (e) {
+    console.error("[scoreSubmission][qa] exception", e);
+    return {
+      skipped: false,
+      final_score: 0,
+      analysis_reasoning: "AI evaluation failed; defaulted to fallback values.",
+      fallback: true,
+    };
+  }
+}
+
 
 async function runScoring(submissionId: string) {
   const key = process.env.LOVABLE_API_KEY;
