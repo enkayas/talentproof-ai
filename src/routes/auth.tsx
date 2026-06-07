@@ -275,6 +275,8 @@ function Field({
   onChange,
   required,
   minLength,
+  onBlur,
+  error,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -284,24 +286,37 @@ function Field({
   onChange: (v: string) => void;
   required?: boolean;
   minLength?: number;
+  onBlur?: () => void;
+  error?: string | null;
 }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-xs font-medium text-foreground/70">
         {label}
       </span>
-      <div className="flex items-center gap-2 rounded-xl border border-border bg-background/40 px-3 py-2.5 transition focus-within:border-[var(--accent-purple)]">
+      <div
+        className={`flex items-center gap-2 rounded-xl border bg-background/40 px-3 py-2.5 transition ${
+          error
+            ? "border-destructive focus-within:border-destructive"
+            : "border-border focus-within:border-[var(--accent-purple)]"
+        }`}
+      >
         <span className="text-foreground/50">{icon}</span>
         <input
           type={type}
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           required={required}
           minLength={minLength}
+          aria-invalid={error ? true : undefined}
           className="w-full bg-transparent text-sm text-foreground placeholder:text-foreground/40 focus:outline-none"
         />
       </div>
+      {error && (
+        <span className="mt-1 block text-xs text-destructive">{error}</span>
+      )}
     </label>
   );
 }
