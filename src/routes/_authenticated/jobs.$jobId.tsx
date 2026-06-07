@@ -16,7 +16,9 @@ import {
   Bookmark,
   CheckCircle2,
   FileText,
+  AlertCircle,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
@@ -97,6 +99,7 @@ function SubmissionsPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [contactOpen, setContactOpen] = useState<Set<string>>(new Set());
   const [rescoring, setRescoring] = useState<Set<string>>(new Set());
