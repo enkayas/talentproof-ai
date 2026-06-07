@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          job_description: string | null
           job_title: string
           owner_id: string
           questions: Json
@@ -28,6 +29,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id: string
+          job_description?: string | null
           job_title: string
           owner_id?: string
           questions?: Json
@@ -38,6 +40,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          job_description?: string | null
           job_title?: string
           owner_id?: string
           questions?: Json
