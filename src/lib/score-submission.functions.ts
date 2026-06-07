@@ -53,7 +53,7 @@ async function runScoring(submissionId: string) {
 
   const { data: sub, error: subErr } = await supabaseAdmin
     .from("submissions")
-    .select("id, job_id, candidate_name, answers, portfolio_link, cv_text, qa_score")
+    .select("id, job_id, candidate_name, answers, portfolio_link, cv_text, cv_file_path, qa_score")
     .eq("id", submissionId)
     .maybeSingle();
 
@@ -64,68 +64,54 @@ async function runScoring(submissionId: string) {
 
   const { data: job } = await supabaseAdmin
     .from("jobs")
-    .select("job_title, questions")
+    .select("job_title, job_description, questions")
     .eq("id", sub.job_id)
     .maybeSingle();
 
-  const questions = Array.isArray(job?.questions) ? (job!.questions as string[]) : [];
-  const answers = Array.isArray(sub.answers) ? (sub.answers as string[]) : [];
+  const job_title = job?.job_title ?? "(unknown)";
+  const job_description = (job as { job_description?: string | null } | null)?.job_description ?? null;
 
-  const qa = questions
-    .map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${answers[i] ?? "(no answer)"}`)
-    .join("\n\n");
-
-  const userPrompt = `Role: ${job?.job_title ?? "(unknown)"}
-Candidate: ${sub.candidate_name}
-
-${qa}
-
-${sub.portfolio_link ? `Portfolio: ${sub.portfolio_link}\n` : ""}${sub.cv_text ? `Resume:\n${sub.cv_text}\n` : ""}
-Evaluate now. Return JSON only.`;
-
-  let score: number | null = null;
-  let reasoning = "";
-
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Lovable-API-Key": key,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
-
-    if (!res.ok) {
-      return { ok: false as const, reason: `gateway-${res.status}` };
+  // 1. Download CV file from storage and convert to base64.
+  let base64Pdf = "";
+  if (sub.cv_file_path) {
+    try {
+      const { data: file, error: dlErr } = await supabaseAdmin.storage
+        .from("cv-resumes")
+        .download(sub.cv_file_path);
+      if (dlErr || !file) {
+        console.warn("[scoreSubmission] CV download failed:", dlErr?.message);
+      } else {
+        const arrayBuffer = await file.arrayBuffer();
+        base64Pdf = Buffer.from(arrayBuffer).toString("base64");
+      }
+    } catch (e) {
+      console.warn("[scoreSubmission] CV download exception:", e);
     }
-    const json = await res.json();
-    const content: string = json?.choices?.[0]?.message?.content ?? "";
-    const match = content.match(/\{[\s\S]*\}/);
-    if (!match) return { ok: false as const, reason: "no-json" };
-    const parsed = JSON.parse(match[0]);
-    const s = Number(parsed?.final_score ?? parsed?.score);
-    if (!Number.isFinite(s)) return { ok: false as const, reason: "bad-score" };
-    score = Math.max(0, Math.min(100, Math.round(s)));
-    reasoning = String(parsed?.analysis_reasoning ?? parsed?.reasoning ?? "").slice(0, 600);
-  } catch {
-    return { ok: false as const, reason: "exception" };
   }
+
+  // 2. Verification logs (placeholder; AI call comes later).
+  console.log("[scoreSubmission] job_title:", job_title);
+  console.log("[scoreSubmission] job_description:", job_description ?? "(none)");
+  console.log("[scoreSubmission] base64Pdf[0..50]:", base64Pdf.slice(0, 50));
+
+  // 3. Mock AI response.
+  const mockAiResponse = {
+    cv_score: 70,
+    key_matches: ["Placeholder match"],
+    cv_summary: "Placeholder summary",
+  };
 
   const { error: updErr } = await supabaseAdmin
     .from("submissions")
-    .update({ qa_score: score, ai_reasoning: reasoning })
+    .update({
+      qa_score: mockAiResponse.cv_score,
+      ai_reasoning: mockAiResponse.cv_summary,
+    })
     .eq("id", submissionId);
 
   if (updErr) return { ok: false as const, reason: "update-failed" };
 
-  return { ok: true as const, score, reasoning };
+  return { ok: true as const, mockAiResponse };
 }
 
 export const scoreSubmission = createServerFn({ method: "POST" })
