@@ -508,7 +508,17 @@ function ApplyPage() {
             </div>
 
             {submitError && (
-              <p className="text-sm text-red-400 mt-6">{submitError}</p>
+              <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
+                <p className="text-sm text-destructive flex-1">{submitError}</p>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border text-sm font-medium hover:bg-foreground/5 transition-colors self-start sm:self-auto"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Try again
+                </button>
+              </div>
             )}
 
             <NavBar
