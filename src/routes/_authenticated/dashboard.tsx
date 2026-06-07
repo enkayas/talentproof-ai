@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Link2,
   PlusCircle,
@@ -17,11 +17,10 @@ import {
   MessageCircle,
   Mail,
   Inbox,
-  AlertCircle,
-  RefreshCw,
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadErrorPanel } from "@/components/LoadErrorPanel";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -68,12 +67,16 @@ function DashboardPage() {
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [email, setEmail] = useState<string>("");
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  const today = useMemo(
+    () =>
+      new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }),
+    [],
+  );
 
   const loadJobs = async () => {
     setLoadingJobs(true);
@@ -129,13 +132,10 @@ function DashboardPage() {
     }
   };
 
-  useEffect(() => {
-    loadJobs();
-  }, []);
-
-  // Refresh when returning from "create"
+  // P1: single effect — fires on mount and when switching back to a tab that lists jobs.
   useEffect(() => {
     if (active === "active" || active === "past") loadJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   const handleLogout = async () => {
@@ -143,9 +143,16 @@ function DashboardPage() {
     navigate({ to: "/auth", replace: true });
   };
 
-  const activeJobs = jobs.filter((j) => j.status !== "closed");
-  const pastJobs = jobs.filter((j) => j.status === "closed");
-  const totalSubs = activeJobs.reduce((n, j) => n + j.submission_count, 0);
+  // P4: memoize derived collections
+  const { activeJobs, pastJobs, totalSubs } = useMemo(() => {
+    const a = jobs.filter((j) => j.status !== "closed");
+    const p = jobs.filter((j) => j.status === "closed");
+    return {
+      activeJobs: a,
+      pastJobs: p,
+      totalSubs: a.reduce((n, j) => n + j.submission_count, 0),
+    };
+  }, [jobs]);
 
 
   return (
