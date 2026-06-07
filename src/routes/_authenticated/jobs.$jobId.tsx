@@ -534,30 +534,29 @@ function SubmissionsPage() {
                           </div>
                         )}
                       </div>
-                      <div className="md:col-span-1 text-xs text-muted-foreground tabular-nums">
+                      <div className="text-xs text-muted-foreground tabular-nums text-left">
                         {new Date(s.created_at).toLocaleString(undefined, {
                           dateStyle: "short",
                         })}
                       </div>
-                      <div className="md:col-span-2 flex items-center gap-2">
+                      <div className="flex items-center justify-center">
                         <ScoreBadge score={s.qa_score} />
                       </div>
-                      <div className="md:col-span-2 flex items-center gap-2">
+                      <div className="flex items-center justify-center">
                         <ScoreBadge score={s.cv_score} />
                       </div>
 
-
-
-                      <div className="md:col-span-1 md:text-right flex md:justify-end items-center gap-3">
+                      <div className="flex md:justify-end items-center gap-2">
                         {s.qa_score !== null && (
                           <button
                             onClick={() => rescore(s.id)}
                             disabled={rescoring.has(s.id)}
                             title="Re-evaluate with AI"
-                            className="text-foreground/40 hover:text-accent-purple transition-colors disabled:opacity-50"
+                            aria-label="Re-evaluate with AI"
+                            className="inline-flex items-center justify-center h-9 w-9 rounded-full text-foreground/50 hover:text-accent-purple hover:bg-accent-purple/10 transition-colors disabled:opacity-50"
                           >
                             <RefreshCw
-                              className={`h-3.5 w-3.5 ${
+                              className={`h-4 w-4 ${
                                 rescoring.has(s.id) ? "animate-spin" : ""
                               }`}
                             />
@@ -566,20 +565,22 @@ function SubmissionsPage() {
                         <button
                           onClick={() => toggleShortlist(s.id, s.is_shortlisted)}
                           title={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
-                          className={`transition-colors ${
+                          aria-label={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
+                          aria-pressed={s.is_shortlisted}
+                          className={`inline-flex items-center justify-center h-9 w-9 rounded-full transition-colors ${
                             s.is_shortlisted
-                              ? "text-accent-purple"
-                              : "text-foreground/30 hover:text-foreground/70"
+                              ? "text-accent-purple bg-accent-purple/10 hover:bg-accent-purple/15"
+                              : "text-foreground/40 hover:text-accent-purple hover:bg-accent-purple/10"
                           }`}
                         >
                           <Bookmark
-                            className="h-3.5 w-3.5"
+                            className="h-5 w-5"
                             fill={s.is_shortlisted ? "currentColor" : "none"}
                           />
                         </button>
                         <button
                           onClick={() => setExpanded(open ? null : s.id)}
-                          className="text-xs font-medium text-accent-purple hover:underline"
+                          className="text-xs font-medium text-accent-purple hover:underline whitespace-nowrap"
                         >
                           {open ? "Hide" : "View"} answers
                         </button>
