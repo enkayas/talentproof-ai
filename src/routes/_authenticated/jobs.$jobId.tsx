@@ -213,10 +213,12 @@ function SubmissionsPage() {
 
   const rescore = async (id: string) => {
     setRescoring((prev) => new Set(prev).add(id));
-    // Optimistically clear score so badge flips to "Evaluating…"
+    // Optimistically clear scores so badges flip to "Evaluating…"
     setSubs((prev) =>
       prev.map((s) =>
-        s.id === id ? { ...s, qa_score: null, ai_reasoning: null } : s,
+        s.id === id
+          ? { ...s, qa_score: null, cv_score: null, cv_analysis: null, ai_reasoning: null }
+          : s,
       ),
     );
     try {
