@@ -12,6 +12,7 @@ const SubmitInput = z.object({
   answers: z.array(z.string().max(5000)).max(50),
   portfolio_link: z.string().max(1000).nullable().optional(),
   cv_text: z.string().max(50000).nullable().optional(),
+  cv_file_path: z.string().max(500).nullable().optional(),
 });
 
 const SYSTEM_PROMPT = `You are a deterministic mathematical scoring engine designed to evaluate candidate text answers. You must calculate a final integer score out of 100 based strictly on the three quantitative formulas below. Do not use holistic impressions. Treat the evaluation with extreme statistical rigor.
