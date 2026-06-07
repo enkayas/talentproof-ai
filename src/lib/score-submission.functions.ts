@@ -150,17 +150,17 @@ CRITICAL: Do not include any negative feedback, weaknesses, or missing-gap array
     if (!res.ok) {
       const errBody = await res.text();
       console.error("[scoreSubmission] gateway error", res.status, errBody);
-      return { ok: false as const, reason: `gateway-${res.status}` };
+      throw new Error(`gateway-${res.status}`);
     }
 
     const json = await res.json();
     const content: string = json?.choices?.[0]?.message?.content ?? "";
     const match = content.match(/\{[\s\S]*\}/);
-    if (!match) return { ok: false as const, reason: "no-json" };
+    if (!match) throw new Error("no-json");
 
     const parsed = JSON.parse(match[0]);
     const score = Number(parsed?.cv_score);
-    if (!Number.isFinite(score)) return { ok: false as const, reason: "bad-score" };
+    if (!Number.isFinite(score)) throw new Error("bad-score");
 
     aiResponse = {
       cv_score: Math.max(0, Math.min(100, Math.round(score))),
@@ -171,26 +171,49 @@ CRITICAL: Do not include any negative feedback, weaknesses, or missing-gap array
     };
   } catch (e) {
     console.error("[scoreSubmission] exception", e);
-    return { ok: false as const, reason: "exception" };
   }
 
-  // 4. Persist to submissions row.
+  // 4. Persist to submissions row (with graceful fallback on AI failure).
+  const isFallback = aiResponse === null;
+  const safeResponse = aiResponse ?? {
+    cv_score: 0,
+    key_matches: [],
+    cv_summary: "AI evaluation failed; defaulted to fallback values.",
+  };
+
   const reasoningBlock = [
-    aiResponse.cv_summary,
-    aiResponse.key_matches.length ? "\n\nKey matches:\n- " + aiResponse.key_matches.join("\n- ") : "",
+    safeResponse.cv_summary,
+    safeResponse.key_matches.length ? "\n\nKey matches:\n- " + safeResponse.key_matches.join("\n- ") : "",
   ].join("");
+
+  const cvAnalysis = isFallback
+    ? {
+        error: "ai-parse-or-call-failed",
+        key_matches: [],
+        cv_summary: safeResponse.cv_summary,
+        logged_at: new Date().toISOString(),
+      }
+    : {
+        key_matches: safeResponse.key_matches,
+        cv_summary: safeResponse.cv_summary,
+      };
 
   const { error: updErr } = await supabaseAdmin
     .from("submissions")
     .update({
-      qa_score: aiResponse.cv_score,
+      qa_score: safeResponse.cv_score,
+      cv_score: safeResponse.cv_score,
+      cv_analysis: cvAnalysis,
       ai_reasoning: reasoningBlock,
     })
     .eq("id", submissionId);
 
-  if (updErr) return { ok: false as const, reason: "update-failed" };
+  if (updErr) {
+    console.error("[scoreSubmission] update failed:", updErr.message);
+    return { ok: false as const, reason: "update-failed" };
+  }
 
-  return { ok: true as const, ...aiResponse };
+  return { ok: true as const, ...safeResponse, fallback: isFallback };
 }
 
 export const scoreSubmission = createServerFn({ method: "POST" })
