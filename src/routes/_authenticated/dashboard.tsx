@@ -661,7 +661,7 @@ function ShortlistCandidateCard({ c }: { c: ShortlistRow }) {
           </div>
           <div className="text-xs text-muted-foreground truncate">{c.email}</div>
         </div>
-        <ScorePill score={c.qa_score} />
+        <ScoreBadge score={c.qa_score} variant="pill" />
       </div>
 
       <div className="flex items-center gap-2 mt-1">
