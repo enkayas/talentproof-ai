@@ -39,6 +39,12 @@ type Job = {
 };
 
 
+type CvAnalysis = {
+  key_matches?: string[];
+  cv_summary?: string;
+  error?: string;
+};
+
 type Submission = {
   id: string;
   candidate_name: string;
@@ -50,6 +56,8 @@ type Submission = {
   cv_text: string | null;
   cv_file_path: string | null;
   qa_score: number | null;
+  cv_score: number | null;
+  cv_analysis: CvAnalysis | null;
   ai_reasoning: string | null;
   created_at: string;
   is_shortlisted: boolean;
