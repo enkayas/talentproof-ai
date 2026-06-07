@@ -76,7 +76,9 @@ function ApplyPage() {
   const [linkedin, setLinkedin] = useState("");
   const [answers, setAnswers] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState("");
-  const [cvText, setCvText] = useState("");
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [cvUploadProgress, setCvUploadProgress] = useState(0);
+  const [cvUploading, setCvUploading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
