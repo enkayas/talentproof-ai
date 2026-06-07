@@ -50,6 +50,7 @@ function AuthPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "signup">(initialMode ?? "login");
   const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
   const [company, setCompany] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,6 +58,10 @@ function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   const isSignup = mode === "signup";
+  const emailError =
+    emailTouched && email.trim() !== "" && !/^\S+@\S+\.\S+$/.test(email.trim())
+      ? "Enter a valid email address."
+      : null;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
