@@ -97,9 +97,18 @@ function SubmissionsPage() {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [contactOpen, setContactOpen] = useState<Set<string>>(new Set());
   const [rescoring, setRescoring] = useState<Set<string>>(new Set());
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [closing, setClosing] = useState(false);
+
+  const toggleContact = (id: string) =>
+    setContactOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const closeApplication = async () => {
     if (!job) return;
@@ -444,11 +453,9 @@ function SubmissionsPage() {
         ) : (
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             {/* Table header */}
-            <div className="hidden md:grid grid-cols-14 gap-4 px-6 py-3 border-b border-border bg-foreground/5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+            <div className="hidden md:grid grid-cols-10 gap-4 px-6 py-3 border-b border-border bg-foreground/5 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
               <div className="col-span-1">Rank</div>
               <div className="col-span-3">Candidate</div>
-              <div className="col-span-2">Email</div>
-              <div className="col-span-2">WhatsApp</div>
               <div className="col-span-1">Submitted</div>
               <div className="col-span-2">Answer Score</div>
               <div className="col-span-2">CV Score</div>
@@ -469,7 +476,7 @@ function SubmissionsPage() {
                         : ""
                     }`}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-14 gap-2 md:gap-4 items-center">
+                    <div className="grid grid-cols-1 md:grid-cols-10 gap-2 md:gap-4 items-center">
                       <div className="md:col-span-1 flex items-center gap-1.5">
                         {isTop ? (
                           <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-400/15 border border-amber-400/40">
@@ -482,34 +489,50 @@ function SubmissionsPage() {
                         )}
                       </div>
 
-                      <div className="md:col-span-3">
+                      <div className="md:col-span-3 min-w-0">
                         <div className="font-medium text-foreground">
                           {s.candidate_name}
                         </div>
-                        {s.linkedin && (
-                          <a
-                            href={
-                              s.linkedin.startsWith("http")
-                                ? s.linkedin
-                                : `https://${s.linkedin}`
-                            }
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs text-accent-purple hover:underline inline-flex items-center gap-1 mt-0.5"
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          <button
+                            onClick={() => toggleContact(s.id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border border-border text-foreground/60 hover:text-foreground hover:bg-foreground/5 transition-colors"
                           >
-                            LinkedIn <ExternalLink className="h-3 w-3" />
-                          </a>
+                            <Mail className="h-3 w-3" />
+                            {contactOpen.has(s.id) ? "Hide contact" : "Contact"}
+                          </button>
+                          {s.linkedin && (
+                            <a
+                              href={
+                                s.linkedin.startsWith("http")
+                                  ? s.linkedin
+                                  : `https://${s.linkedin}`
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-accent-purple hover:underline inline-flex items-center gap-1"
+                            >
+                              LinkedIn <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                        {contactOpen.has(s.id) && (
+                          <div className="mt-2 space-y-1 text-xs text-foreground/80">
+                            <div className="inline-flex items-center gap-2 min-w-0 max-w-full">
+                              <Mail className="h-3 w-3 text-foreground/40 shrink-0" />
+                              <a
+                                href={`mailto:${s.email}`}
+                                className="truncate hover:text-foreground"
+                              >
+                                {s.email}
+                              </a>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-3 w-3 text-foreground/40 shrink-0" />
+                              <span>{s.whatsapp || "—"}</span>
+                            </div>
+                          </div>
                         )}
-                      </div>
-                      <div className="md:col-span-2 text-sm text-foreground/80 inline-flex items-center gap-2 min-w-0">
-                        <Mail className="h-3.5 w-3.5 text-foreground/40 shrink-0" />
-                        <a href={`mailto:${s.email}`} className="truncate hover:text-foreground">
-                          {s.email}
-                        </a>
-                      </div>
-                      <div className="md:col-span-2 text-sm text-foreground/80 inline-flex items-center gap-2">
-                        <Phone className="h-3.5 w-3.5 text-foreground/40 shrink-0" />
-                        {s.whatsapp || "—"}
                       </div>
                       <div className="md:col-span-1 text-xs text-muted-foreground tabular-nums">
                         {new Date(s.created_at).toLocaleString(undefined, {
