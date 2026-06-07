@@ -1,49 +1,45 @@
-## Goal
+## Security Audit Results
 
-Actually run the cynical-recruiter QA rubric against candidate answers and store its score + reasoning separately from the CV evaluation.
+### Baseline (all good)
+- RLS is enabled on both `jobs` and `submissions`; the supabase linter finds zero issues.
+- No roles are stored on a profiles table; the app has no role system (single-tenant: each recruiter owns their own jobs via `jobs.owner_id = auth.uid()`), so `user_roles` / `has_role()` is not required.
+- `jobs.SELECT` is public-by-design (apply page reads job + questions anonymously); no other table allows anonymous read.
+- `SUPABASE_SERVICE_ROLE_KEY` is only used in `client.server.ts` (server-only) and `auth-middleware.ts`; no service-role key in client bundles. Bearer tokens are attached via the integration-managed `attachSupabaseAuth` middleware.
+- Storage bucket `cv-resumes` is private with owner-scoped policies.
 
-## 1. Schema migration
-Add one nullable column to `submissions`:
-- `qa_analysis` JSONB — mirrors `cv_analysis`; will hold `{ final_score, analysis_reasoning }` on success or `{ error, analysis_reasoning, logged_at }` on fallback.
+### Gaps to fix
 
-No other schema changes; `qa_score` already exists.
+1. **`scoreSubmission` has no auth** (error). The serverFn is callable anonymously with any UUID — lets attackers burn AI credits, corrupt `qa_score` / `cv_score`, and indirectly read CV/answer data.
+   - Add `requireSupabaseAuth` middleware and verify `context.userId === jobs.owner_id` for the submission's job before running `runScoring`.
 
-## 2. `src/lib/score-submission.functions.ts` changes
+2. **`submitApplication` bypasses RLS for the public insert** (error). Anyone can POST submissions to closed jobs, past the 100-cap, or against fake job ids.
+   - Inside the handler, before insert: load the job with `supabaseAdmin`, reject when `status !== 'live'`, and reject when `count(submissions where job_id=…) >= 100`.
 
-### Replace the unused `SYSTEM_PROMPT` constant
-Rename to `QA_SYSTEM_PROMPT` and set its body verbatim to the cynical-recruiter rubric supplied by the user. Keep the CV prompt (`systemPrompt` built inside `runScoring`) untouched — the two rubrics stay fully isolated.
+3. **Open redirect on `/auth`** (warn). `redirect` search param is taken verbatim. Craft `/auth?redirect=https://attacker.com` → post-login phishing.
+   - In `validateSearch`, only accept a `redirect` that starts with `/` and not `//`; otherwise drop to `/dashboard`. Also drop the unsafe `as "/dashboard"` casts at the navigate sites.
 
-### Add a new `runQaScoring(job, sub)` helper
-- Pull `job.questions` (already fetched) and `sub.answers`.
-- If `answers` is empty or every entry is blank → return `{ ok: false, skipped: true }` and write `qa_score: null`, `qa_analysis: null`.
-- Otherwise format a transcript like:
-  ```
-  Q1: <question label>
-  A1: <answer>
+4. **`submissions` UPDATE policy is too broad** (warn). Recruiters can hand-edit `qa_score`, `cv_score`, `cv_analysis`, `ai_reasoning`. Score integrity matters here because the dashboard ranks on these.
+   - Replace the existing owner-update policy with one restricted to recruiter-editable columns only: `is_shortlisted`. AI score writes happen through `supabaseAdmin` from `scoreSubmission`, so RLS scoping does not break them.
+   - Implementation: keep the policy USING/WITH CHECK ownership, but enforce column scope with a row-level trigger that raises if any of the AI columns change for non-service-role callers. (Postgres RLS itself has no column-level UPDATE restriction we can express through Supabase migration cleanly, so a `BEFORE UPDATE` trigger is the correct mechanism.)
 
-  Q2: ...
-  ```
-- POST to `https://ai.gateway.lovable.dev/v1/chat/completions` with `model: google/gemini-2.5-flash`, `messages: [{role:"system", content: QA_SYSTEM_PROMPT}, {role:"user", content: transcript}]`.
-- Parse `{ final_score, analysis_reasoning }`; clamp score 0–100; on any gateway/parse failure return fallback `{ final_score: 0, analysis_reasoning: "AI evaluation failed.", error: true }`.
+5. **Missing UPDATE policy on `storage.objects` for `cv-resumes`** (warn). Add an explicit no-op policy: reject UPDATE for the `cv-resumes` bucket for all non-service-role callers (admin client bypasses RLS, so backend file ops still work).
 
-### Wire it into `runScoring`
-- Run CV scoring as today.
-- Run `runQaScoring` (sequential is fine; can be `Promise.all` with the CV call if we restructure, but sequential keeps the diff small).
-- Single `submissions` update writes:
-  - `qa_score` = QA final_score (or `null` when skipped)
-  - `qa_analysis` = `{ final_score, analysis_reasoning }` on success / fallback shape on error / `null` when skipped
-  - `cv_score`, `cv_analysis`, `ai_reasoning` — unchanged (CV-only)
-- Return value extends current shape with `qa: { score, reasoning, fallback }`.
+6. **Defense-in-depth: move `closeApplication` and `toggleShortlist` mutations off the anon client** (warn). Today `src/routes/_authenticated/jobs.$jobId.tsx` calls `supabase.from('jobs').update(...)` and `supabase.from('submissions').update({ is_shortlisted })` directly from the component, relying purely on RLS.
+   - Add two serverFns in `src/lib/jobs.functions.ts`: `closeJob({ jobId })` and `toggleShortlist({ submissionId, value })`, both gated by `requireSupabaseAuth` + explicit `owner_id === context.userId` check, then call them from the page via `useServerFn`.
 
-### Bug fix
-Stop the current `qa_score: safeResponse.cv_score` line — `qa_score` must come from QA, not CV.
+### Technical changes
 
-## 3. Out of scope
-- No UI changes. The dashboard already reads `qa_score` as "ANSWER SCORE" and will start showing the real value automatically. Rendering `qa_analysis` in the Screening Answers tab can come in a follow-up.
-- CV scoring logic, prompt, and storage are untouched.
-- Candidate-facing submission flow untouched.
+**Migration (single file):**
+- `BEFORE UPDATE` trigger on `public.submissions` that, when `current_setting('role') <> 'service_role'`, raises if any of `qa_score`, `cv_score`, `qa_analysis`, `cv_analysis`, `ai_reasoning` is being changed. (Recruiter UPDATEs through RLS only touch `is_shortlisted`.)
+- `CREATE POLICY "Block direct updates on cv-resumes"` on `storage.objects` for UPDATE — `USING (bucket_id <> 'cv-resumes')`, so non-bucket files behave normally and `cv-resumes` rejects UPDATE; admin client bypasses RLS.
 
-## Technical notes
-- Migration: `ALTER TABLE public.submissions ADD COLUMN qa_analysis jsonb;` — no GRANTs needed (column on existing table; RLS unchanged).
-- After the migration runs, `src/integrations/supabase/types.ts` regenerates; the new `qa_analysis` field becomes type-safe in the update call.
-- Truncate transcript at ~30k chars defensively before sending (each answer is already max 5000 chars × 50 answers cap, so this is a guard).
+**Code:**
+- `src/lib/score-submission.functions.ts`: add `requireSupabaseAuth` middleware to `scoreSubmission`; verify ownership via `jobs.owner_id`. In `submitApplication`, add `live`-status + 100-cap checks before `insert`.
+- `src/lib/jobs.functions.ts` (new): `closeJob` and `toggleShortlist` serverFns with `requireSupabaseAuth` + ownership checks.
+- `src/routes/_authenticated/jobs.$jobId.tsx`: replace the two direct `supabase.from(...).update(...)` calls with the new serverFns via `useServerFn`.
+- `src/routes/auth.tsx`: tighten `validateSearch` (relative-path only); drop the `as "/dashboard"` casts and use the validated value directly.
+
+### Out of scope
+- No new auth providers, no role system (single-owner model is appropriate for this app).
+- No rate limiting (would require a new table or KV; flagged as a future hardening step but not part of this pass).
+- Storage SELECT/INSERT/DELETE policies on `cv-resumes` already look correct per the linter and prior migration; leaving untouched.

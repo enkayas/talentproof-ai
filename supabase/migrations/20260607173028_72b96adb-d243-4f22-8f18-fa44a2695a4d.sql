@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.guard_submissions_score_columns() FROM PUBLIC, anon, authenticated;
