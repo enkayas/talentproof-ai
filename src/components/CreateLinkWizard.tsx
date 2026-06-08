@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -44,11 +44,11 @@ export function CreateLinkWizard() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
 
-  const appOrigin =
-    typeof window !== "undefined"
-      ? window.location.origin
-      : "https://talentproof-ai.lovable.app";
-  const generatedUrl = jobId ? `${appOrigin}/apply/${jobId}` : "";
+  const [appOrigin, setAppOrigin] = useState("");
+  useEffect(() => {
+    setAppOrigin(window.location.origin);
+  }, []);
+  const generatedUrl = jobId && appOrigin ? `${appOrigin}/apply/${jobId}` : "";
 
   const handleGenerate = async () => {
     if (!title.trim() || !desc.trim()) return;
