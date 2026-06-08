@@ -88,13 +88,14 @@ function SubmissionsPage() {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [closing, setClosing] = useState(false);
 
-  const toggleContact = (id: string) =>
+  const toggleContact = useCallback((id: string) => {
     setContactOpen((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  }, []);
 
   const closeApplication = async () => {
     if (!job) return;
