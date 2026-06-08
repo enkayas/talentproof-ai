@@ -32,7 +32,10 @@ export const getMyProfile = createServerFn({ method: "GET" })
       avatarUrl = signed?.signedUrl ?? null;
     }
 
-    return { profile: profile ?? null, avatarUrl };
+    // Boundary parse — guarantees serializable, deterministic shape on the wire.
+    const { ProfileSchema } = await import("@/lib/schemas");
+    const parsed = ProfileSchema.parse(profile ?? null);
+    return { profile: parsed, avatarUrl };
   });
 
 export const updateMyProfile = createServerFn({ method: "POST" })
