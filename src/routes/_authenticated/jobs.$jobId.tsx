@@ -110,7 +110,7 @@ function SubmissionsPage() {
     }
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoadError(null);
     try {
       const [jobRes, subsRes] = await Promise.all([
