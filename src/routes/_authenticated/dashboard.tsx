@@ -292,7 +292,12 @@ function DashboardPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {pastJobs.map((job) => (
-                    <JobCard key={job.id} job={job} archived />
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      archived
+                      onDeleted={(id) => setJobs((prev) => prev.filter((j) => j.id !== id))}
+                    />
                   ))}
                 </div>
               )}
