@@ -592,173 +592,23 @@ function SubmissionsPage() {
             </div>
 
             <div className="divide-y divide-border">
-              {subs.map((s, idx) => {
-                const open = expanded === s.id;
-                const isElite = s.qa_score !== null && s.qa_score >= 80;
-                const isTop = idx === 0 && s.qa_score !== null;
-                return (
-                  <div
-                    key={s.id}
-                    className={`px-6 py-4 transition-colors ${
-                      isElite
-                        ? "bg-emerald-500/[0.04] shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25),0_0_24px_-8px_rgba(16,185,129,0.35)]"
-                        : ""
-                    }`}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-[64px_minmax(0,2.4fr)_1fr_1fr_1fr_1.4fr] gap-2 md:gap-4 items-center">
-                      <div className="flex items-center gap-1.5">
-                        {isTop ? (
-                          <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-400/15 border border-amber-400/40">
-                            <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-foreground/5 border border-border text-[11px] font-semibold tabular-nums text-foreground/70">
-                            #{idx + 1}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="font-medium text-foreground">
-                          {s.candidate_name}
-                        </div>
-                        <div className="flex items-center gap-3 mt-1 flex-wrap">
-                          <button
-                            onClick={() => toggleContact(s.id)}
-                            className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border border-border text-foreground/60 hover:text-foreground hover:bg-foreground/5 transition-colors"
-                          >
-                            <Mail className="h-3 w-3" />
-                            {contactOpen.has(s.id) ? "Hide contact" : "Contact"}
-                          </button>
-                          {s.linkedin && (
-                            <a
-                              href={
-                                s.linkedin.startsWith("http")
-                                  ? s.linkedin
-                                  : `https://${s.linkedin}`
-                              }
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-accent-purple hover:underline inline-flex items-center gap-1"
-                            >
-                              LinkedIn <ExternalLink className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-                        {contactOpen.has(s.id) && (
-                          <div className="mt-2 space-y-1 text-xs text-foreground/80">
-                            <div className="inline-flex items-center gap-2 min-w-0 max-w-full">
-                              <Mail className="h-3 w-3 text-foreground/40 shrink-0" />
-                              <a
-                                href={`mailto:${s.email}`}
-                                className="truncate hover:text-foreground"
-                              >
-                                {s.email}
-                              </a>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-3 w-3 text-foreground/40 shrink-0" />
-                              <span>{s.whatsapp || "—"}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground tabular-nums text-left">
-                        {new Date(s.created_at).toLocaleString(undefined, {
-                          dateStyle: "short",
-                        })}
-                      </div>
-                      <div className="flex items-center justify-center">
-                        <ScoreBadge score={s.qa_score} />
-                      </div>
-                      <div className="flex items-center justify-center">
-                        <ScoreBadge score={s.cv_score} />
-                      </div>
-
-                      <div className="flex md:justify-end items-center gap-2">
-                        {s.qa_score !== null && (
-                          <button
-                            onClick={() => rescore(s.id)}
-                            disabled={rescoring.has(s.id)}
-                            title="Re-evaluate with AI"
-                            aria-label="Re-evaluate with AI"
-                            className="inline-flex items-center justify-center h-9 w-9 rounded-full text-foreground/50 hover:text-accent-purple hover:bg-accent-purple/10 transition-colors disabled:opacity-50"
-                          >
-                            <RefreshCw
-                              className={`h-4 w-4 ${
-                                rescoring.has(s.id) ? "animate-spin" : ""
-                              }`}
-                            />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => toggleShortlist(s.id, s.is_shortlisted)}
-                          title={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
-                          aria-label={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
-                          aria-pressed={s.is_shortlisted}
-                          className={`inline-flex items-center justify-center h-9 w-9 rounded-full transition-colors ${
-                            s.is_shortlisted
-                              ? "text-accent-purple bg-accent-purple/10 hover:bg-accent-purple/15"
-                              : "text-foreground/40 hover:text-accent-purple hover:bg-accent-purple/10"
-                          }`}
-                        >
-                          <Bookmark
-                            className="h-5 w-5"
-                            fill={s.is_shortlisted ? "currentColor" : "none"}
-                          />
-                        </button>
-                        <button
-                          onClick={() => handleToggleExpand(s.id)}
-                          className="text-xs font-medium text-accent-purple hover:underline whitespace-nowrap"
-                        >
-                          {open ? "Hide" : "View"} answers
-                        </button>
-                      </div>
-                    </div>
-
-                    {open && (
-                      <div className="mt-5 pl-0 md:pl-2 border-l-2 border-accent-purple/30">
-                        {/* AI Evaluation Report (always visible above the tabs) */}
-                        <div className="pl-4 mb-5">
-                          <div className="flex items-center justify-between gap-3 mb-2">
-                            <p className="text-xs uppercase tracking-wider text-accent-purple inline-flex items-center gap-1.5">
-                              <Sparkles className="h-3 w-3" />
-                              AI Evaluation Report
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] uppercase tracking-wider text-foreground/40">Answers</span>
-                              <ScoreBadge score={s.qa_score} />
-                              <span className="text-[10px] uppercase tracking-wider text-foreground/40 ml-2">CV</span>
-                              <ScoreBadge score={s.cv_score} />
-                            </div>
-                          </div>
-                          <div className="bg-gradient-to-br from-accent-purple/10 to-background/40 border border-accent-purple/20 rounded-xl p-4">
-                            {s.details?.ai_reasoning ? (
-                              <p className="text-foreground/85 whitespace-pre-wrap leading-relaxed text-sm">
-                                {s.details.ai_reasoning}
-                              </p>
-                            ) : (
-                              <p className="text-foreground/50 italic text-sm inline-flex items-center gap-2">
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                {s.detailsLoading
-                                  ? "Loading evaluation…"
-                                  : "Evaluation in progress…"}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <CandidateDrawerTabs
-                          submission={s}
-                          questions={job.questions}
-                          requireLink={job.require_link}
-                          requireCv={job.require_cv}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {subs.map((s, idx) => (
+                <SubmissionRow
+                  key={s.id}
+                  submission={s}
+                  idx={idx}
+                  open={expanded === s.id}
+                  isContactOpen={contactOpen.has(s.id)}
+                  isRescoring={rescoring.has(s.id)}
+                  questions={job.questions}
+                  requireLink={job.require_link}
+                  requireCv={job.require_cv}
+                  onToggleContact={toggleContact}
+                  onRescore={rescore}
+                  onToggleShortlist={toggleShortlist}
+                  onToggleExpand={handleToggleExpand}
+                />
+              ))}
             </div>
           </div>
         )}
