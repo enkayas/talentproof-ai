@@ -180,7 +180,7 @@ function SubmissionsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId]);
 
   // P7: lazy detail fetch for a single submission row.
   const loadDetails = useCallback(async (id: string) => {
