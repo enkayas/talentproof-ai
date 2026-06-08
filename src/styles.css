@@ -74,7 +74,7 @@
 :root {
   --radius: 0.75rem;
   /* Neo-Brutalist Minimalist palette */
-  --background: oklch(0.972 0.012 80);          /* warm off-white #faf8f5 */
+  --background: oklch(1 0 0);                   /* pure white */
   --foreground: oklch(0.16 0.02 270);           /* deep pitch/navy black */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.16 0.02 270);
