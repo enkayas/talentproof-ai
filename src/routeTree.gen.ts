@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApplyJobSlugRouteImport } from './routes/apply.$jobSlug'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as ApiCvSubmissionIdRouteImport } from './routes/api/cv.$submissionId'
 import { Route as AuthenticatedJobsJobIdRouteImport } from './routes/_authenticated/jobs.$jobId'
@@ -42,6 +43,11 @@ const ApplyJobSlugRoute = ApplyJobSlugRouteImport.update({
   path: '/apply/$jobSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/profile': typeof AuthenticatedProfileRoute
   '/apply/$jobSlug': typeof ApplyJobSlugRoute
   '/jobs/$jobId': typeof AuthenticatedJobsJobIdRoute
   '/api/cv/$submissionId': typeof ApiCvSubmissionIdRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/profile': typeof AuthenticatedProfileRoute
   '/apply/$jobSlug': typeof ApplyJobSlugRoute
   '/jobs/$jobId': typeof AuthenticatedJobsJobIdRoute
   '/api/cv/$submissionId': typeof ApiCvSubmissionIdRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/login': typeof LoginRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/apply/$jobSlug': typeof ApplyJobSlugRoute
   '/_authenticated/jobs/$jobId': typeof AuthenticatedJobsJobIdRoute
   '/api/cv/$submissionId': typeof ApiCvSubmissionIdRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/login'
     | '/dashboard'
+    | '/profile'
     | '/apply/$jobSlug'
     | '/jobs/$jobId'
     | '/api/cv/$submissionId'
@@ -103,6 +113,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/login'
     | '/dashboard'
+    | '/profile'
     | '/apply/$jobSlug'
     | '/jobs/$jobId'
     | '/api/cv/$submissionId'
@@ -113,6 +124,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/login'
     | '/_authenticated/dashboard'
+    | '/_authenticated/profile'
     | '/apply/$jobSlug'
     | '/_authenticated/jobs/$jobId'
     | '/api/cv/$submissionId'
@@ -164,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApplyJobSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -190,11 +209,13 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedJobsJobIdRoute: typeof AuthenticatedJobsJobIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedJobsJobIdRoute: AuthenticatedJobsJobIdRoute,
 }
 

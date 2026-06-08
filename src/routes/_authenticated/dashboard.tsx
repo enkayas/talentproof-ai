@@ -36,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteArchivedJob } from "@/lib/jobs.functions";
 
@@ -84,6 +85,7 @@ function DashboardPage() {
   const [shortlistedCount, setShortlistedCount] = useState<number | null>(null);
   const { user } = useCurrentUser();
   const email = user?.email ?? "";
+  const { profile, avatarUrl } = useProfile();
 
   const today = useMemo(
     () =>
@@ -196,17 +198,28 @@ function DashboardPage() {
         </nav>
 
         <div className="px-3 pb-5 pt-4 border-t border-border">
-          <div className="px-3 py-2 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-accent-purple/30 flex items-center justify-center text-sm font-semibold text-foreground">
-              {(email[0] ?? "R").toUpperCase()}
+          <Link
+            to="/profile"
+            className="px-3 py-2 flex items-center gap-3 rounded-lg hover:bg-card transition-colors"
+            aria-label="Edit profile"
+          >
+            <div className="h-9 w-9 rounded-full bg-accent-purple/30 flex items-center justify-center text-sm font-semibold text-foreground overflow-hidden">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                (profile?.display_name?.[0] ?? email[0] ?? "R").toUpperCase()
+              )}
             </div>
             <div className="min-w-0">
               <div className="text-sm font-medium text-foreground truncate">
-                {email || "Recruiter"}
+                {profile?.display_name || email || "Recruiter"}
               </div>
-              <div className="text-xs text-muted-foreground truncate">HR · Recruiter</div>
+              <div className="text-xs text-muted-foreground truncate">
+                {profile?.job_title || "Recruiter"}
+                {profile?.company ? ` · ${profile.company}` : ""}
+              </div>
             </div>
-          </div>
+          </Link>
           <button
             onClick={handleLogout}
             className="mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-foreground/60 hover:text-foreground hover:bg-card transition-colors"
