@@ -20,11 +20,11 @@ export const Route = createFileRoute("/auth")({
   }),
   head: () => ({
     meta: [
-      { title: "Recruiter Login & Sign Up — NOT. JOBLESS." },
+      { title: "Recruiter Login & Sign Up — 100resumes" },
       {
         name: "description",
         content:
-          "Log in or create your NOT. JOBLESS. recruiter account. Start screening freshers on proof, not keywords.",
+          "Log in or create your 100resumes recruiter account. Start screening freshers on proof, not keywords.",
       },
     ],
   }),
@@ -37,10 +37,12 @@ const PURPLE_GLOW =
 function Logo() {
   return (
     <Link to="/" className="flex items-center gap-2">
-      <div className="flex h-7 w-10 items-center justify-center rounded-full border border-foreground/80">
-        <div className="h-2 w-2 rounded-full bg-foreground" />
+      <div className="flex h-7 w-10 items-center justify-center rounded-full bg-foreground text-background">
+        <span className="font-serif text-[13px] font-bold leading-none tracking-tight">100</span>
       </div>
-      <span className="text-xl font-semibold tracking-tight">NOT. JOBLESS.</span>
+      <span className="text-xl font-semibold tracking-tight">
+        <span className="text-accent-purple">100</span>resumes
+      </span>
     </Link>
   );
 }
@@ -244,7 +246,7 @@ function AuthPage() {
                 </>
               ) : (
                 <>
-                  New to NOT. JOBLESS.?{" "}
+                  New to 100resumes?{" "}
                   <button
                     type="button"
                     onClick={() => setMode("signup")}
