@@ -20,7 +20,7 @@ import { submitApplication } from "@/lib/score-submission.functions";
 export const Route = createFileRoute("/apply/$jobSlug")({
   head: () => ({
     meta: [
-      { title: "Apply — NOT. JOBLESS." },
+      { title: "Apply — 100resumes" },
       {
         name: "description",
         content:

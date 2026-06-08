@@ -34,7 +34,7 @@ import { ScoreBadge } from "@/components/ScoreBadge";
 
 export const Route = createFileRoute("/_authenticated/jobs/$jobId")({
   head: () => ({
-    meta: [{ title: "Submissions — NOT. JOBLESS." }],
+    meta: [{ title: "Submissions — 100resumes" }],
   }),
   component: SubmissionsPage,
 });

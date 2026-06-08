@@ -11,13 +11,13 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "NOT. JOBLESS. — Hire on Proof, Not Keywords" },
+      { title: "100resumes — Hire on Proof, Not Keywords" },
       {
         name: "description",
         content:
           "Replace resumes with AI-evaluated competency forms. Get a pre-ranked leaderboard of the top 10% non-technical and humanities freshers.",
       },
-      { property: "og:title", content: "NOT. JOBLESS. — Hire on Proof, Not Keywords" },
+      { property: "og:title", content: "100resumes — Hire on Proof, Not Keywords" },
       {
         property: "og:description",
         content:
@@ -37,7 +37,7 @@ function Logo() {
       <div className="flex h-7 w-10 items-center justify-center rounded-full border border-foreground/80">
         <div className="h-2 w-2 rounded-full bg-foreground" />
       </div>
-      <span className="text-xl font-semibold tracking-tight">NOT. JOBLESS.</span>
+      <span className="text-xl font-semibold tracking-tight">100resumes</span>
     </Link>
   );
 }
@@ -173,7 +173,7 @@ function FeatureCard({
 function LinkMock() {
   return (
     <div className="w-full rounded-lg bg-[#4a3a28] p-4 text-left">
-      <div className="text-[10px] uppercase tracking-wider text-[#e8c98a]">NOT. JOBLESS.</div>
+      <div className="text-[10px] uppercase tracking-wider text-[#e8c98a]">100resumes</div>
       <div className="mt-2 text-sm text-[#f3e6c8]">Marketing Associate · Apply</div>
       <div className="mt-3 rounded bg-[#e8c98a]/90 px-3 py-1.5 text-[11px] font-semibold text-[#3a2d1f] w-fit">
         Start screening →
@@ -279,7 +279,7 @@ function Compare() {
             />
             <div className="relative">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-accent-purple">
-                The NOT. JOBLESS. Way
+                The 100resumes Way
               </p>
               <h3 className="font-serif mt-3 text-3xl text-foreground">Built on proof</h3>
               <ul className="mt-8 space-y-5">
@@ -386,7 +386,7 @@ function Footer() {
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
         <Logo />
         <p className="text-xs text-foreground/50">
-          © {new Date().getFullYear()} NOT. JOBLESS.. Hire on proof.
+          © {new Date().getFullYear()} 100resumes Hire on proof.
         </p>
       </div>
     </footer>

@@ -19,7 +19,7 @@ import {
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({
     meta: [
-      { title: "Profile — NOT. JOBLESS." },
+      { title: "Profile — 100resumes" },
       {
         name: "description",
         content:

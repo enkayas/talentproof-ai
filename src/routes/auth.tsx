@@ -20,11 +20,11 @@ export const Route = createFileRoute("/auth")({
   }),
   head: () => ({
     meta: [
-      { title: "Recruiter Login & Sign Up — NOT. JOBLESS." },
+      { title: "Recruiter Login & Sign Up — 100resumes" },
       {
         name: "description",
         content:
-          "Log in or create your NOT. JOBLESS. recruiter account. Start screening freshers on proof, not keywords.",
+          "Log in or create your 100resumes recruiter account. Start screening freshers on proof, not keywords.",
       },
     ],
   }),
@@ -40,7 +40,7 @@ function Logo() {
       <div className="flex h-7 w-10 items-center justify-center rounded-full border border-foreground/80">
         <div className="h-2 w-2 rounded-full bg-foreground" />
       </div>
-      <span className="text-xl font-semibold tracking-tight">NOT. JOBLESS.</span>
+      <span className="text-xl font-semibold tracking-tight">100resumes</span>
     </Link>
   );
 }
@@ -244,7 +244,7 @@ function AuthPage() {
                 </>
               ) : (
                 <>
-                  New to NOT. JOBLESS.?{" "}
+                  New to 100resumes?{" "}
                   <button
                     type="button"
                     onClick={() => setMode("signup")}
