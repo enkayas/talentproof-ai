@@ -2,8 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const Input = z.object({
-  jobTitle: z.string().min(1),
-  jobDescription: z.string().min(1),
+  jobTitle: z.string().trim().min(1).max(100),
+  jobDescription: z.string().trim().min(1).max(3000),
 });
 
 const SYSTEM_PROMPT = `You are an elite HR consultant specializing in non-technical, creative, and humanities roles. Analyze the provided Job Title and Job Description. Generate exactly 5 interview questions tailored to the role, with a deliberate MIX of depth:
