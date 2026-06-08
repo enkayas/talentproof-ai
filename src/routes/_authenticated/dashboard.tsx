@@ -67,6 +67,7 @@ function DashboardPage() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
+  const [shortlistedCount, setShortlistedCount] = useState<number | null>(null);
   const { user } = useCurrentUser();
   const email = user?.email ?? "";
 
@@ -106,9 +107,23 @@ function DashboardPage() {
     }
   };
 
+  const loadShortlistedCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from("submissions")
+        .select("*", { count: "exact", head: true })
+        .eq("is_shortlisted", true);
+      if (error) throw error;
+      setShortlistedCount(count ?? 0);
+    } catch {
+      setShortlistedCount(null);
+    }
+  };
+
   // P1: single effect — fires on mount and when switching back to a tab that lists jobs.
   useEffect(() => {
     if (active === "active" || active === "past") loadJobs();
+    if (active === "active") loadShortlistedCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
@@ -294,7 +309,7 @@ function DashboardPage() {
                 <MetricCard label="Total Applicants" value={String(totalSubs)} />
                 <MetricCard
                   label="Shortlisted"
-                  value="—"
+                  value={shortlistedCount === null ? null : String(shortlistedCount)}
                   accent
                 />
               </section>
@@ -353,7 +368,7 @@ function MetricCard({
   accent = false,
 }: {
   label: string;
-  value: string;
+  value: string | null;
   accent?: boolean;
 }) {
   return (
@@ -361,13 +376,17 @@ function MetricCard({
       <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
         {label}
       </div>
-      <div
-        className={`mt-3 font-serif text-5xl tabular-nums tracking-tight ${
-          accent ? "text-accent-purple italic" : "text-foreground"
-        }`}
-      >
-        {value}
-      </div>
+      {value === null ? (
+        <div className="mt-3 h-12 w-20 rounded-md bg-foreground/10 animate-pulse" />
+      ) : (
+        <div
+          className={`mt-3 font-serif text-5xl tabular-nums tracking-tight ${
+            accent ? "text-accent-purple italic" : "text-foreground"
+          }`}
+        >
+          {value}
+        </div>
+      )}
     </div>
   );
 }
