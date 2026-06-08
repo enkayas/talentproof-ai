@@ -84,6 +84,7 @@ function DashboardPage() {
   const [shortlistedCount, setShortlistedCount] = useState<number | null>(null);
   const { user } = useCurrentUser();
   const email = user?.email ?? "";
+  const { profile, avatarUrl } = useProfile();
 
   const today = useMemo(
     () =>
