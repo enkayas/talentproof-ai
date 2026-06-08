@@ -309,7 +309,7 @@ function DashboardPage() {
                 <MetricCard label="Total Applicants" value={String(totalSubs)} />
                 <MetricCard
                   label="Shortlisted"
-                  value="—"
+                  value={shortlistedCount === null ? null : String(shortlistedCount)}
                   accent
                 />
               </section>
