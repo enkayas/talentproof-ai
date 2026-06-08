@@ -3,8 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Recruiter Login — TalentFirst" },
-      { name: "description", content: "Log in to your TalentFirst recruiter dashboard." },
+      { title: "Recruiter Login — NOT. JOBLESS." },
+      { name: "description", content: "Log in to your NOT. JOBLESS. recruiter dashboard." },
     ],
   }),
   component: LoginPage,

@@ -44,7 +44,7 @@ import { JobRowSchema, ShortlistRowSchema, type JobRow } from "@/lib/schemas";
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Recruiter Dashboard — TalentFirst" },
+      { title: "Recruiter Dashboard — NOT. JOBLESS." },
       {
         name: "description",
         content:
@@ -164,7 +164,7 @@ function DashboardPage() {
             <div className="h-2 w-2 rounded-full bg-foreground" />
           </div>
           <div>
-            <div className="text-foreground font-semibold tracking-tight">TalentFirst</div>
+            <div className="text-foreground font-semibold tracking-tight">NOT. JOBLESS.</div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Recruiter Suite
             </div>
@@ -237,7 +237,7 @@ function DashboardPage() {
           <div className="flex h-8 w-10 items-center justify-center rounded-full border border-foreground/80">
             <div className="h-1.5 w-1.5 rounded-full bg-foreground" />
           </div>
-          <span className="font-semibold">TalentFirst</span>
+          <span className="font-semibold">NOT. JOBLESS.</span>
         </div>
 
         <div className="relative px-6 md:px-10 py-8 md:py-12 max-w-7xl mx-auto">
