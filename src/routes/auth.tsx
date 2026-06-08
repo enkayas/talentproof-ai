@@ -37,10 +37,12 @@ const PURPLE_GLOW =
 function Logo() {
   return (
     <Link to="/" className="flex items-center gap-2">
-      <div className="flex h-7 w-10 items-center justify-center rounded-full border border-foreground/80">
-        <div className="h-2 w-2 rounded-full bg-foreground" />
+      <div className="flex h-7 w-10 items-center justify-center rounded-full bg-foreground text-background">
+        <span className="font-serif text-[13px] font-bold leading-none tracking-tight">100</span>
       </div>
-      <span className="text-xl font-semibold tracking-tight">100resumes</span>
+      <span className="text-xl font-semibold tracking-tight">
+        <span className="text-accent-purple">100</span>resumes
+      </span>
     </Link>
   );
 }
