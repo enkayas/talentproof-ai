@@ -39,6 +39,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteArchivedJob } from "@/lib/jobs.functions";
+import { JobRowSchema, ShortlistRowSchema, type JobRow } from "@/lib/schemas";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -67,13 +68,8 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: typeof Link2 }[] = [
 ];
 
 
-type JobRow = {
-  id: string;
-  job_title: string;
-  created_at: string;
-  submission_count: number;
-  status: string;
-};
+
+
 
 
 function DashboardPage() {
@@ -105,15 +101,14 @@ function DashboardPage() {
     try {
       const { data, error } = await supabase.rpc("jobs_with_counts");
       if (error) throw error;
-      setJobs(
-        (data ?? []).map((j) => ({
-          id: j.id,
-          job_title: j.job_title,
-          created_at: j.created_at,
-          status: j.status ?? "live",
-          submission_count: Number(j.submission_count ?? 0),
-        })),
-      );
+      // Boundary parse — coerces bigint submission_count + validates timestamptz.
+      const parsed: JobRow[] = [];
+      for (const raw of data ?? []) {
+        const result = JobRowSchema.safeParse(raw);
+        if (result.success) parsed.push(result.data);
+        else console.warn("[dashboard] skipped malformed job row:", result.error.message);
+      }
+      setJobs(parsed);
     } catch (e) {
       setJobsError(
         e instanceof Error ? e.message : "Could not load your jobs. Please try again.",
@@ -651,19 +646,21 @@ function ShortlistHub() {
         if (subsErr) throw subsErr;
         if (cancelled) return;
         setRows(
-          (subs ?? []).map((s) => {
-            const joined = (s as { jobs?: { job_title?: string } | null }).jobs;
-            return {
-              id: s.id,
-              candidate_name: s.candidate_name,
-              email: s.email,
-              whatsapp: s.whatsapp,
-              linkedin: s.linkedin,
-              qa_score: s.qa_score === null ? null : Number(s.qa_score),
-              created_at: s.created_at,
-              job_id: s.job_id,
-              job_title: joined?.job_title ?? "Untitled role",
-            };
+          (subs ?? []).flatMap((s) => {
+            const result = ShortlistRowSchema.safeParse(s);
+            if (!result.success) return [];
+            const r = result.data;
+            return [{
+              id: r.id,
+              candidate_name: r.candidate_name,
+              email: r.email,
+              whatsapp: r.whatsapp,
+              linkedin: r.linkedin,
+              qa_score: r.qa_score,
+              created_at: r.created_at,
+              job_id: r.job_id,
+              job_title: r.jobs?.job_title ?? "Untitled role",
+            }];
           }),
         );
       } catch (e) {

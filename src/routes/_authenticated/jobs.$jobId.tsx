@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
 import { closeJob as closeJobFn, toggleShortlist as toggleShortlistFn } from "@/lib/jobs.functions";
+import { SubmissionListRowSchema, SubmissionDetailsSchema } from "@/lib/schemas";
 import { ScoreBadge } from "@/components/ScoreBadge";
 
 
@@ -171,23 +172,25 @@ function SubmissionsPage() {
       // Preserve any already-loaded details across polls.
       setSubs((prev) => {
         const detailsById = new Map(prev.map((p) => [p.id, p.details]));
-        return (subsData ?? []).map((s) => {
-          const row = s as Record<string, unknown>;
-          return {
-            id: s.id,
-            candidate_name: s.candidate_name,
-            email: s.email,
-            whatsapp: s.whatsapp,
-            linkedin: s.linkedin,
-            qa_score: s.qa_score === null ? null : Number(s.qa_score),
-            cv_score:
-              row.cv_score === null || row.cv_score === undefined
-                ? null
-                : Number(row.cv_score),
-            created_at: s.created_at,
-            is_shortlisted: !!row.is_shortlisted,
-            details: detailsById.get(s.id),
-          } as Submission;
+        return (subsData ?? []).flatMap((s) => {
+          const result = SubmissionListRowSchema.safeParse(s);
+          if (!result.success) {
+            console.warn("[submissions] skipped malformed row:", result.error.message);
+            return [];
+          }
+          const r = result.data;
+          return [{
+            id: r.id,
+            candidate_name: r.candidate_name,
+            email: r.email,
+            whatsapp: r.whatsapp,
+            linkedin: r.linkedin,
+            qa_score: r.qa_score,
+            cv_score: r.cv_score,
+            created_at: r.created_at,
+            is_shortlisted: r.is_shortlisted,
+            details: detailsById.get(r.id),
+          } as Submission];
         });
       });
     } catch (e) {
@@ -213,15 +216,7 @@ function SubmissionsPage() {
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
-      const row = (data ?? {}) as Record<string, unknown>;
-      const details: SubmissionDetails = {
-        answers: Array.isArray(row.answers) ? (row.answers as string[]) : [],
-        portfolio_link: (row.portfolio_link as string | null) ?? null,
-        cv_text: (row.cv_text as string | null) ?? null,
-        cv_file_path: (row.cv_file_path as string | null) ?? null,
-        cv_analysis: (row.cv_analysis as CvAnalysis | null) ?? null,
-        ai_reasoning: (row.ai_reasoning as string | null) ?? null,
-      };
+      const details = SubmissionDetailsSchema.parse(data ?? {});
       setSubs((prev) =>
         prev.map((s) =>
           s.id === id ? { ...s, details, detailsLoading: false } : s,
