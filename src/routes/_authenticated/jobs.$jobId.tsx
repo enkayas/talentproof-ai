@@ -286,7 +286,13 @@ function SubmissionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasPending]);
 
-  const rescore = async (id: string) => {
+  // Track latest `expanded` in a ref so rescore stays referentially stable.
+  const expandedRef = useRef<string | null>(null);
+  useEffect(() => {
+    expandedRef.current = expanded;
+  }, [expanded]);
+
+  const rescore = useCallback(async (id: string) => {
     setRescoring((prev) => new Set(prev).add(id));
     // Optimistically clear scores so badges flip to "Evaluating…" and invalidate
     // the lazy-loaded drawer details so they re-fetch on next expand.
@@ -300,7 +306,7 @@ function SubmissionsPage() {
     try {
       await scoreSubmission({ data: { submissionId: id } });
       await load();
-      if (expanded === id) loadDetails(id);
+      if (expandedRef.current === id) loadDetails(id);
     } catch {
       toast.error("Re-scoring failed. Please try again.");
       await load();
@@ -311,9 +317,9 @@ function SubmissionsPage() {
         return next;
       });
     }
-  };
+  }, [load, loadDetails]);
 
-  const toggleShortlist = async (id: string, current: boolean) => {
+  const toggleShortlist = useCallback(async (id: string, current: boolean) => {
     const next = !current;
     setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, is_shortlisted: next } : s)));
     const res = await toggleShortlistFn({ data: { submissionId: id, value: next } });
@@ -323,7 +329,7 @@ function SubmissionsPage() {
       return;
     }
     toast.success(next ? "Candidate added to Shortlist Hub." : "Removed from shortlist.");
-  };
+  }, []);
 
 
   const [exporting, setExporting] = useState(false);
