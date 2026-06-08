@@ -183,7 +183,7 @@ function SubmissionsPage() {
   };
 
   // P7: lazy detail fetch for a single submission row.
-  const loadDetails = async (id: string) => {
+  const loadDetails = useCallback(async (id: string) => {
     setSubs((prev) =>
       prev.map((s) => (s.id === id ? { ...s, detailsLoading: true, detailsError: null } : s)),
     );
@@ -222,18 +222,24 @@ function SubmissionsPage() {
         ),
       );
     }
-  };
+  }, []);
 
-  const handleToggleExpand = (id: string) => {
+  // Keep a ref of latest subs so stable callbacks can read current data without re-creating.
+  const subsRef = useRef<Submission[]>(subs);
+  useEffect(() => {
+    subsRef.current = subs;
+  }, [subs]);
+
+  const handleToggleExpand = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = prev === id ? null : id;
       if (next) {
-        const row = subs.find((s) => s.id === id);
+        const row = subsRef.current.find((s) => s.id === id);
         if (row && !row.details && !row.detailsLoading) loadDetails(id);
       }
       return next;
     });
-  };
+  }, [loadDetails]);
 
   useEffect(() => {
     let cancelled = false;
