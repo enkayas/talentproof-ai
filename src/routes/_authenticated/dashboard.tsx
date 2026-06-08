@@ -531,10 +531,13 @@ function JobCard({
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
         {archived ? (
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5">
-            <Archive className="h-3 w-3" />
-            Read-only
-          </span>
+          <button
+            onClick={() => setConfirmOpen(true)}
+            aria-label="Delete job permanently"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         ) : (
           <button
             onClick={handleCopy}
@@ -561,6 +564,41 @@ function JobCard({
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
+
+      {archived && (
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete this
+                job posting along with all of its compiled screening metrics, CV
+                evaluations, and candidate submissions from the database.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  void handleDelete();
+                }}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting…
+                  </span>
+                ) : (
+                  "Delete Permanently"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
