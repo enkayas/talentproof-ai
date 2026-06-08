@@ -19,6 +19,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ScoreInfoPopover,
+  ANSWER_SCORE_INFO,
+  CV_SCORE_INFO,
+} from "@/components/ScoreInfoPopover";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scoreSubmission } from "@/lib/score-submission.functions";
@@ -600,8 +605,12 @@ function SubmissionsPage() {
               <div className="text-left">Rank</div>
               <div className="text-left">Candidate</div>
               <div className="text-left">Submitted</div>
-              <div className="text-center">Answer Score</div>
-              <div className="text-center">CV Score</div>
+              <div className="text-center">
+                <ScoreInfoPopover {...ANSWER_SCORE_INFO} />
+              </div>
+              <div className="text-center">
+                <ScoreInfoPopover {...CV_SCORE_INFO} />
+              </div>
               <div className="text-right">Actions</div>
             </div>
 
