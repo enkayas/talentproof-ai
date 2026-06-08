@@ -137,7 +137,7 @@ function SubmissionsPage() {
       const subsData = subsRes.data;
 
       if (jobData) {
-        setJob({
+        const nextJob: Job = {
           id: jobData.id,
           job_title: jobData.job_title,
           questions: Array.isArray(jobData.questions)
@@ -146,7 +146,21 @@ function SubmissionsPage() {
           require_link: !!jobData.require_link,
           require_cv: !!jobData.require_cv,
           status: (jobData as { status?: string }).status ?? "live",
-        });
+        };
+        // Preserve identity across polls when nothing changed — keeps memoized
+        // rows from re-rendering due to a new `questions` array reference.
+        setJob((prev) =>
+          prev &&
+          prev.id === nextJob.id &&
+          prev.job_title === nextJob.job_title &&
+          prev.require_link === nextJob.require_link &&
+          prev.require_cv === nextJob.require_cv &&
+          prev.status === nextJob.status &&
+          prev.questions.length === nextJob.questions.length &&
+          prev.questions.every((q, i) => q === nextJob.questions[i])
+            ? prev
+            : nextJob,
+        );
       }
 
       // Preserve any already-loaded details across polls.
