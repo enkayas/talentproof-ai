@@ -67,6 +67,7 @@ function DashboardPage() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState<string | null>(null);
+  const [shortlistedCount, setShortlistedCount] = useState<number | null>(null);
   const { user } = useCurrentUser();
   const email = user?.email ?? "";
 
