@@ -30,6 +30,31 @@ export const closeJob = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const deleteArchivedJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => CloseJobInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: job, error: jobErr } = await supabase
+      .from("jobs")
+      .select("id, owner_id")
+      .eq("id", data.jobId)
+      .maybeSingle();
+    if (jobErr || !job) return { ok: false as const, reason: "not-found" };
+    if (job.owner_id !== userId) return { ok: false as const, reason: "forbidden" };
+
+    // No FK cascade on submissions.job_id — delete dependent rows first.
+    const { error: subsErr } = await supabase
+      .from("submissions")
+      .delete()
+      .eq("job_id", data.jobId);
+    if (subsErr) return { ok: false as const, reason: subsErr.message };
+
+    const { error } = await supabase.from("jobs").delete().eq("id", data.jobId);
+    if (error) return { ok: false as const, reason: error.message };
+    return { ok: true as const };
+  });
+
 export const toggleShortlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => ToggleShortlistInput.parse(d))

@@ -1,5 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   Link2,
   PlusCircle,
@@ -17,13 +19,25 @@ import {
   MessageCircle,
   Mail,
   Inbox,
+  Trash2,
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadErrorPanel } from "@/components/LoadErrorPanel";
 import { ScoreBadge } from "@/components/ScoreBadge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteArchivedJob } from "@/lib/jobs.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -278,7 +292,12 @@ function DashboardPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {pastJobs.map((job) => (
-                    <JobCard key={job.id} job={job} archived />
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      archived
+                      onDeleted={(id) => setJobs((prev) => prev.filter((j) => j.id !== id))}
+                    />
                   ))}
                 </div>
               )}
@@ -391,8 +410,20 @@ function MetricCard({
   );
 }
 
-function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean }) {
+function JobCard({
+  job,
+  archived = false,
+  onDeleted,
+}: {
+  job: JobRow;
+  archived?: boolean;
+  onDeleted?: (id: string) => void;
+}) {
   const [copied, setCopied] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
+  const deleteJob = useServerFn(deleteArchivedJob);
 
   const handleCopy = async () => {
     try {
@@ -401,6 +432,27 @@ function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean })
       setTimeout(() => setCopied(false), 1500);
     } catch {
       /* noop */
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await deleteJob({ data: { jobId: job.id } });
+      if (!res.ok) {
+        toast.error("Could not delete job", { description: res.reason });
+        return;
+      }
+      onDeleted?.(job.id);
+      setConfirmOpen(false);
+      toast.success("Job successfully deleted");
+      router.invalidate();
+    } catch (e) {
+      toast.error("Could not delete job", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -479,10 +531,13 @@ function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean })
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
         {archived ? (
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1.5">
-            <Archive className="h-3 w-3" />
-            Read-only
-          </span>
+          <button
+            onClick={() => setConfirmOpen(true)}
+            aria-label="Delete job permanently"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         ) : (
           <button
             onClick={handleCopy}
@@ -509,6 +564,41 @@ function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean })
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
+
+      {archived && (
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete this
+                job posting along with all of its compiled screening metrics, CV
+                evaluations, and candidate submissions from the database.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  void handleDelete();
+                }}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting…
+                  </span>
+                ) : (
+                  "Delete Permanently"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
