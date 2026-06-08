@@ -1,5 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   Link2,
   PlusCircle,
@@ -17,13 +19,25 @@ import {
   MessageCircle,
   Mail,
   Inbox,
+  Trash2,
 } from "lucide-react";
 import { CreateLinkWizard } from "@/components/CreateLinkWizard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadErrorPanel } from "@/components/LoadErrorPanel";
 import { ScoreBadge } from "@/components/ScoreBadge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteArchivedJob } from "@/lib/jobs.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
