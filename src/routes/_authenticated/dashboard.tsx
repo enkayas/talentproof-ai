@@ -410,8 +410,20 @@ function MetricCard({
   );
 }
 
-function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean }) {
+function JobCard({
+  job,
+  archived = false,
+  onDeleted,
+}: {
+  job: JobRow;
+  archived?: boolean;
+  onDeleted?: (id: string) => void;
+}) {
   const [copied, setCopied] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
+  const deleteJob = useServerFn(deleteArchivedJob);
 
   const handleCopy = async () => {
     try {
@@ -420,6 +432,27 @@ function JobCard({ job, archived = false }: { job: JobRow; archived?: boolean })
       setTimeout(() => setCopied(false), 1500);
     } catch {
       /* noop */
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await deleteJob({ data: { jobId: job.id } });
+      if (!res.ok) {
+        toast.error("Could not delete job", { description: res.reason });
+        return;
+      }
+      onDeleted?.(job.id);
+      setConfirmOpen(false);
+      toast.success("Job successfully deleted");
+      router.invalidate();
+    } catch (e) {
+      toast.error("Could not delete job", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
