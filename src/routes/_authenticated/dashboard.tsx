@@ -107,9 +107,23 @@ function DashboardPage() {
     }
   };
 
+  const loadShortlistedCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from("submissions")
+        .select("*", { count: "exact", head: true })
+        .eq("is_shortlisted", true);
+      if (error) throw error;
+      setShortlistedCount(count ?? 0);
+    } catch {
+      setShortlistedCount(null);
+    }
+  };
+
   // P1: single effect — fires on mount and when switching back to a tab that lists jobs.
   useEffect(() => {
     if (active === "active" || active === "past") loadJobs();
+    if (active === "active") loadShortlistedCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
