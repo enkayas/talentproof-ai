@@ -368,7 +368,7 @@ function MetricCard({
   accent = false,
 }: {
   label: string;
-  value: string;
+  value: string | null;
   accent?: boolean;
 }) {
   return (
@@ -376,13 +376,17 @@ function MetricCard({
       <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
         {label}
       </div>
-      <div
-        className={`mt-3 font-serif text-5xl tabular-nums tracking-tight ${
-          accent ? "text-accent-purple italic" : "text-foreground"
-        }`}
-      >
-        {value}
-      </div>
+      {value === null ? (
+        <div className="mt-3 h-12 w-20 rounded-md bg-foreground/10 animate-pulse" />
+      ) : (
+        <div
+          className={`mt-3 font-serif text-5xl tabular-nums tracking-tight ${
+            accent ? "text-accent-purple italic" : "text-foreground"
+          }`}
+        >
+          {value}
+        </div>
+      )}
     </div>
   );
 }
