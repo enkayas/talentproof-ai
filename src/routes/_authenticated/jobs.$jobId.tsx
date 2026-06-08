@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Loader2,
@@ -88,13 +88,14 @@ function SubmissionsPage() {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [closing, setClosing] = useState(false);
 
-  const toggleContact = (id: string) =>
+  const toggleContact = useCallback((id: string) => {
     setContactOpen((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  }, []);
 
   const closeApplication = async () => {
     if (!job) return;
@@ -109,7 +110,7 @@ function SubmissionsPage() {
     }
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoadError(null);
     try {
       const [jobRes, subsRes] = await Promise.all([
@@ -136,7 +137,7 @@ function SubmissionsPage() {
       const subsData = subsRes.data;
 
       if (jobData) {
-        setJob({
+        const nextJob: Job = {
           id: jobData.id,
           job_title: jobData.job_title,
           questions: Array.isArray(jobData.questions)
@@ -145,7 +146,21 @@ function SubmissionsPage() {
           require_link: !!jobData.require_link,
           require_cv: !!jobData.require_cv,
           status: (jobData as { status?: string }).status ?? "live",
-        });
+        };
+        // Preserve identity across polls when nothing changed — keeps memoized
+        // rows from re-rendering due to a new `questions` array reference.
+        setJob((prev) =>
+          prev &&
+          prev.id === nextJob.id &&
+          prev.job_title === nextJob.job_title &&
+          prev.require_link === nextJob.require_link &&
+          prev.require_cv === nextJob.require_cv &&
+          prev.status === nextJob.status &&
+          prev.questions.length === nextJob.questions.length &&
+          prev.questions.every((q, i) => q === nextJob.questions[i])
+            ? prev
+            : nextJob,
+        );
       }
 
       // Preserve any already-loaded details across polls.
@@ -179,10 +194,10 @@ function SubmissionsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId]);
 
   // P7: lazy detail fetch for a single submission row.
-  const loadDetails = async (id: string) => {
+  const loadDetails = useCallback(async (id: string) => {
     setSubs((prev) =>
       prev.map((s) => (s.id === id ? { ...s, detailsLoading: true, detailsError: null } : s)),
     );
@@ -221,18 +236,24 @@ function SubmissionsPage() {
         ),
       );
     }
-  };
+  }, []);
 
-  const handleToggleExpand = (id: string) => {
+  // Keep a ref of latest subs so stable callbacks can read current data without re-creating.
+  const subsRef = useRef<Submission[]>(subs);
+  useEffect(() => {
+    subsRef.current = subs;
+  }, [subs]);
+
+  const handleToggleExpand = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = prev === id ? null : id;
       if (next) {
-        const row = subs.find((s) => s.id === id);
+        const row = subsRef.current.find((s) => s.id === id);
         if (row && !row.details && !row.detailsLoading) loadDetails(id);
       }
       return next;
     });
-  };
+  }, [loadDetails]);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,7 +300,13 @@ function SubmissionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasPending]);
 
-  const rescore = async (id: string) => {
+  // Track latest `expanded` in a ref so rescore stays referentially stable.
+  const expandedRef = useRef<string | null>(null);
+  useEffect(() => {
+    expandedRef.current = expanded;
+  }, [expanded]);
+
+  const rescore = useCallback(async (id: string) => {
     setRescoring((prev) => new Set(prev).add(id));
     // Optimistically clear scores so badges flip to "Evaluating…" and invalidate
     // the lazy-loaded drawer details so they re-fetch on next expand.
@@ -293,7 +320,7 @@ function SubmissionsPage() {
     try {
       await scoreSubmission({ data: { submissionId: id } });
       await load();
-      if (expanded === id) loadDetails(id);
+      if (expandedRef.current === id) loadDetails(id);
     } catch {
       toast.error("Re-scoring failed. Please try again.");
       await load();
@@ -304,9 +331,9 @@ function SubmissionsPage() {
         return next;
       });
     }
-  };
+  }, [load, loadDetails]);
 
-  const toggleShortlist = async (id: string, current: boolean) => {
+  const toggleShortlist = useCallback(async (id: string, current: boolean) => {
     const next = !current;
     setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, is_shortlisted: next } : s)));
     const res = await toggleShortlistFn({ data: { submissionId: id, value: next } });
@@ -316,7 +343,7 @@ function SubmissionsPage() {
       return;
     }
     toast.success(next ? "Candidate added to Shortlist Hub." : "Removed from shortlist.");
-  };
+  }, []);
 
 
   const [exporting, setExporting] = useState(false);
@@ -579,173 +606,23 @@ function SubmissionsPage() {
             </div>
 
             <div className="divide-y divide-border">
-              {subs.map((s, idx) => {
-                const open = expanded === s.id;
-                const isElite = s.qa_score !== null && s.qa_score >= 80;
-                const isTop = idx === 0 && s.qa_score !== null;
-                return (
-                  <div
-                    key={s.id}
-                    className={`px-6 py-4 transition-colors ${
-                      isElite
-                        ? "bg-emerald-500/[0.04] shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25),0_0_24px_-8px_rgba(16,185,129,0.35)]"
-                        : ""
-                    }`}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-[64px_minmax(0,2.4fr)_1fr_1fr_1fr_1.4fr] gap-2 md:gap-4 items-center">
-                      <div className="flex items-center gap-1.5">
-                        {isTop ? (
-                          <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-400/15 border border-amber-400/40">
-                            <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-foreground/5 border border-border text-[11px] font-semibold tabular-nums text-foreground/70">
-                            #{idx + 1}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="font-medium text-foreground">
-                          {s.candidate_name}
-                        </div>
-                        <div className="flex items-center gap-3 mt-1 flex-wrap">
-                          <button
-                            onClick={() => toggleContact(s.id)}
-                            className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border border-border text-foreground/60 hover:text-foreground hover:bg-foreground/5 transition-colors"
-                          >
-                            <Mail className="h-3 w-3" />
-                            {contactOpen.has(s.id) ? "Hide contact" : "Contact"}
-                          </button>
-                          {s.linkedin && (
-                            <a
-                              href={
-                                s.linkedin.startsWith("http")
-                                  ? s.linkedin
-                                  : `https://${s.linkedin}`
-                              }
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-accent-purple hover:underline inline-flex items-center gap-1"
-                            >
-                              LinkedIn <ExternalLink className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-                        {contactOpen.has(s.id) && (
-                          <div className="mt-2 space-y-1 text-xs text-foreground/80">
-                            <div className="inline-flex items-center gap-2 min-w-0 max-w-full">
-                              <Mail className="h-3 w-3 text-foreground/40 shrink-0" />
-                              <a
-                                href={`mailto:${s.email}`}
-                                className="truncate hover:text-foreground"
-                              >
-                                {s.email}
-                              </a>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-3 w-3 text-foreground/40 shrink-0" />
-                              <span>{s.whatsapp || "—"}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground tabular-nums text-left">
-                        {new Date(s.created_at).toLocaleString(undefined, {
-                          dateStyle: "short",
-                        })}
-                      </div>
-                      <div className="flex items-center justify-center">
-                        <ScoreBadge score={s.qa_score} />
-                      </div>
-                      <div className="flex items-center justify-center">
-                        <ScoreBadge score={s.cv_score} />
-                      </div>
-
-                      <div className="flex md:justify-end items-center gap-2">
-                        {s.qa_score !== null && (
-                          <button
-                            onClick={() => rescore(s.id)}
-                            disabled={rescoring.has(s.id)}
-                            title="Re-evaluate with AI"
-                            aria-label="Re-evaluate with AI"
-                            className="inline-flex items-center justify-center h-9 w-9 rounded-full text-foreground/50 hover:text-accent-purple hover:bg-accent-purple/10 transition-colors disabled:opacity-50"
-                          >
-                            <RefreshCw
-                              className={`h-4 w-4 ${
-                                rescoring.has(s.id) ? "animate-spin" : ""
-                              }`}
-                            />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => toggleShortlist(s.id, s.is_shortlisted)}
-                          title={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
-                          aria-label={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
-                          aria-pressed={s.is_shortlisted}
-                          className={`inline-flex items-center justify-center h-9 w-9 rounded-full transition-colors ${
-                            s.is_shortlisted
-                              ? "text-accent-purple bg-accent-purple/10 hover:bg-accent-purple/15"
-                              : "text-foreground/40 hover:text-accent-purple hover:bg-accent-purple/10"
-                          }`}
-                        >
-                          <Bookmark
-                            className="h-5 w-5"
-                            fill={s.is_shortlisted ? "currentColor" : "none"}
-                          />
-                        </button>
-                        <button
-                          onClick={() => handleToggleExpand(s.id)}
-                          className="text-xs font-medium text-accent-purple hover:underline whitespace-nowrap"
-                        >
-                          {open ? "Hide" : "View"} answers
-                        </button>
-                      </div>
-                    </div>
-
-                    {open && (
-                      <div className="mt-5 pl-0 md:pl-2 border-l-2 border-accent-purple/30">
-                        {/* AI Evaluation Report (always visible above the tabs) */}
-                        <div className="pl-4 mb-5">
-                          <div className="flex items-center justify-between gap-3 mb-2">
-                            <p className="text-xs uppercase tracking-wider text-accent-purple inline-flex items-center gap-1.5">
-                              <Sparkles className="h-3 w-3" />
-                              AI Evaluation Report
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] uppercase tracking-wider text-foreground/40">Answers</span>
-                              <ScoreBadge score={s.qa_score} />
-                              <span className="text-[10px] uppercase tracking-wider text-foreground/40 ml-2">CV</span>
-                              <ScoreBadge score={s.cv_score} />
-                            </div>
-                          </div>
-                          <div className="bg-gradient-to-br from-accent-purple/10 to-background/40 border border-accent-purple/20 rounded-xl p-4">
-                            {s.details?.ai_reasoning ? (
-                              <p className="text-foreground/85 whitespace-pre-wrap leading-relaxed text-sm">
-                                {s.details.ai_reasoning}
-                              </p>
-                            ) : (
-                              <p className="text-foreground/50 italic text-sm inline-flex items-center gap-2">
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                {s.detailsLoading
-                                  ? "Loading evaluation…"
-                                  : "Evaluation in progress…"}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <CandidateDrawerTabs
-                          submission={s}
-                          questions={job.questions}
-                          requireLink={job.require_link}
-                          requireCv={job.require_cv}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {subs.map((s, idx) => (
+                <SubmissionRow
+                  key={s.id}
+                  submission={s}
+                  idx={idx}
+                  open={expanded === s.id}
+                  isContactOpen={contactOpen.has(s.id)}
+                  isRescoring={rescoring.has(s.id)}
+                  questions={job.questions}
+                  requireLink={job.require_link}
+                  requireCv={job.require_cv}
+                  onToggleContact={toggleContact}
+                  onRescore={rescore}
+                  onToggleShortlist={toggleShortlist}
+                  onToggleExpand={handleToggleExpand}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -753,6 +630,181 @@ function SubmissionsPage() {
     </div>
   );
 }
+
+type SubmissionRowProps = {
+  submission: Submission;
+  idx: number;
+  open: boolean;
+  isContactOpen: boolean;
+  isRescoring: boolean;
+  questions: string[];
+  requireLink: boolean;
+  requireCv: boolean;
+  onToggleContact: (id: string) => void;
+  onRescore: (id: string) => void;
+  onToggleShortlist: (id: string, current: boolean) => void;
+  onToggleExpand: (id: string) => void;
+};
+
+// P5: memoized so unrelated rows skip re-rendering when one row's drawer
+// opens, one is rescored, or the 6s poll refreshes the list.
+const SubmissionRow = memo(function SubmissionRow({
+  submission: s,
+  idx,
+  open,
+  isContactOpen,
+  isRescoring,
+  questions,
+  requireLink,
+  requireCv,
+  onToggleContact,
+  onRescore,
+  onToggleShortlist,
+  onToggleExpand,
+}: SubmissionRowProps) {
+  const isElite = s.qa_score !== null && s.qa_score >= 80;
+  const isTop = idx === 0 && s.qa_score !== null;
+  return (
+    <div
+      className={`px-6 py-4 transition-colors ${
+        isElite
+          ? "bg-emerald-500/[0.04] shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25),0_0_24px_-8px_rgba(16,185,129,0.35)]"
+          : ""
+      }`}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-[64px_minmax(0,2.4fr)_1fr_1fr_1fr_1.4fr] gap-2 md:gap-4 items-center">
+        <div className="flex items-center gap-1.5">
+          {isTop ? (
+            <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-400/15 border border-amber-400/40">
+              <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+            </span>
+          ) : (
+            <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-foreground/5 border border-border text-[11px] font-semibold tabular-nums text-foreground/70">
+              #{idx + 1}
+            </span>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <div className="font-medium text-foreground">{s.candidate_name}</div>
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <button
+              onClick={() => onToggleContact(s.id)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border border-border text-foreground/60 hover:text-foreground hover:bg-foreground/5 transition-colors"
+            >
+              <Mail className="h-3 w-3" />
+              {isContactOpen ? "Hide contact" : "Contact"}
+            </button>
+            {s.linkedin && (
+              <a
+                href={s.linkedin.startsWith("http") ? s.linkedin : `https://${s.linkedin}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-accent-purple hover:underline inline-flex items-center gap-1"
+              >
+                LinkedIn <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+          {isContactOpen && (
+            <div className="mt-2 space-y-1 text-xs text-foreground/80">
+              <div className="inline-flex items-center gap-2 min-w-0 max-w-full">
+                <Mail className="h-3 w-3 text-foreground/40 shrink-0" />
+                <a href={`mailto:${s.email}`} className="truncate hover:text-foreground">
+                  {s.email}
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="h-3 w-3 text-foreground/40 shrink-0" />
+                <span>{s.whatsapp || "—"}</span>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground tabular-nums text-left">
+          {new Date(s.created_at).toLocaleString(undefined, { dateStyle: "short" })}
+        </div>
+        <div className="flex items-center justify-center">
+          <ScoreBadge score={s.qa_score} />
+        </div>
+        <div className="flex items-center justify-center">
+          <ScoreBadge score={s.cv_score} />
+        </div>
+
+        <div className="flex md:justify-end items-center gap-2">
+          {s.qa_score !== null && (
+            <button
+              onClick={() => onRescore(s.id)}
+              disabled={isRescoring}
+              title="Re-evaluate with AI"
+              aria-label="Re-evaluate with AI"
+              className="inline-flex items-center justify-center h-9 w-9 rounded-full text-foreground/50 hover:text-accent-purple hover:bg-accent-purple/10 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRescoring ? "animate-spin" : ""}`} />
+            </button>
+          )}
+          <button
+            onClick={() => onToggleShortlist(s.id, s.is_shortlisted)}
+            title={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
+            aria-label={s.is_shortlisted ? "Remove from shortlist" : "Add to shortlist"}
+            aria-pressed={s.is_shortlisted}
+            className={`inline-flex items-center justify-center h-9 w-9 rounded-full transition-colors ${
+              s.is_shortlisted
+                ? "text-accent-purple bg-accent-purple/10 hover:bg-accent-purple/15"
+                : "text-foreground/40 hover:text-accent-purple hover:bg-accent-purple/10"
+            }`}
+          >
+            <Bookmark className="h-5 w-5" fill={s.is_shortlisted ? "currentColor" : "none"} />
+          </button>
+          <button
+            onClick={() => onToggleExpand(s.id)}
+            className="text-xs font-medium text-accent-purple hover:underline whitespace-nowrap"
+          >
+            {open ? "Hide" : "View"} answers
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="mt-5 pl-0 md:pl-2 border-l-2 border-accent-purple/30">
+          <div className="pl-4 mb-5">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-xs uppercase tracking-wider text-accent-purple inline-flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3" />
+                AI Evaluation Report
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-foreground/40">Answers</span>
+                <ScoreBadge score={s.qa_score} />
+                <span className="text-[10px] uppercase tracking-wider text-foreground/40 ml-2">CV</span>
+                <ScoreBadge score={s.cv_score} />
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-accent-purple/10 to-background/40 border border-accent-purple/20 rounded-xl p-4">
+              {s.details?.ai_reasoning ? (
+                <p className="text-foreground/85 whitespace-pre-wrap leading-relaxed text-sm">
+                  {s.details.ai_reasoning}
+                </p>
+              ) : (
+                <p className="text-foreground/50 italic text-sm inline-flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {s.detailsLoading ? "Loading evaluation…" : "Evaluation in progress…"}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <CandidateDrawerTabs
+            submission={s}
+            questions={questions}
+            requireLink={requireLink}
+            requireCv={requireCv}
+          />
+        </div>
+      )}
+    </div>
+  );
+});
 
 function CandidateDrawerTabs({
   submission: s,
